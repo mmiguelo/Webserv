@@ -2,15 +2,21 @@ name: T1.1 - Scaffolding & epoll Skeleton
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   Task_1-1_Testing:
     name: Task 1.1 testing
     runs-on: ubuntu-latest
+    container:
+      image: ubuntu:latest
+      options: --cap-add=SYS_PTRACE
     outputs:
       matches: ${{ steps.check.outputs.matches }}
     steps:
+      - name: Install dependencies
+        run: apt-get update && apt-get install -y make g++ strace netcat-openbsd
+
       - name: Validate PR Title
         id: check
         run: |
@@ -35,18 +41,18 @@ jobs:
             echo "FAIL: PR title does not match T${SPRINT}.${TASK}"
             exit 1
           fi
-        
+
       - uses: actions/checkout@v4
-      
+
       #────── BUILD
       - name: Compile with strict flags
         run: make
-      
+
       - name: Verify binary exists
         run: test -f ./webserv && echo "Binary exists"
-      
+
       #──── MAKEFILE
-      
+
       - name: make all
         run: make all
 
@@ -55,12 +61,12 @@ jobs:
           make clean
           find . -name "*.o" | grep -q . && echo "FAIL: .o files remain" && exit 1
           echo "PASS: no .o files after clean"
-      
+
       - name: make fclean - removes binary
         run: |
           make fclean
           test ! -f ./webserv && echo "PASS: binary removed!"
-      
+
       - name: make re - full rebuild
         run: |
           make re
@@ -80,33 +86,33 @@ jobs:
 
       - name: Compile explicitly with -std=c++98
         run: make fclean && make CXXFLAGS="-Wall -Wextra -Werror -std=c++98"
-      
+
       # ── ePoll Accepts Connections
       - name: Rebuild before server tests
         run: make re
 
-      - name: Start server in background 
+      - name: Start server in background
         run: |
           ./webserv config/default.conf &
           echo $! > /tmp/webserv.pid
           sleep 1
-      
+
       - name: Test connection is accepted
         run: |
           curl --max-time 3 --connect-timeout 2 -s http://localhost:8080/ || true
           nc -zv 127.0.0.1 8080 && echo "PASS: port 8080 is open"
-      
+
       - name: Verify no crashes after connection
         run: |
           PID=$(cat /tmp/webserv.pid)
           sleep 1
           kill -0 $PID && echo "PASS: server still running"
-      
+
       - name: Teardown
         if: always()
         run: |
           PID=$(cat /tmp/webserv.pid 2>/dev/null) && kill $PID 2>/dev/null || true
-      
+
       # ── Epoll Single Instance ──
 
       - name: Count epoll_wait calls with strace
