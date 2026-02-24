@@ -2,7 +2,7 @@ name: T1.1 - Scaffolding & epoll Skeleton
 
 on:
   pull_request:
-    types: [opened, edited, synchronized, reopened]
+    branches: [ main ]
 
 jobs:
   check-pr-title:
