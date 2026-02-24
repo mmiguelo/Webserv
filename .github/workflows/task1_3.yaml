@@ -5,11 +5,11 @@ on:
     branches: [main]
 
 jobs:
-  Task_1-3_Testing:
-    name: Task 1.3 testing
+  gate:
+    name: Check PR Title
     runs-on: ubuntu-latest
     outputs:
-      matches: ${{ steps.check.outputs.matches }}
+      should_run: ${{ steps.check.outputs.should_run }}
     steps:
       - name: Validate PR Title
         id: check
@@ -22,20 +22,26 @@ jobs:
           fi
 
           PR_SPRINT=$(echo "$TITLE" | grep -oP "^T\K[0-9]+(?=\.)")
+          PR_TASK=$(echo "$TITLE" | grep -oP "^T[0-9]+\.\K[0-9]+")
 
           SPRINT=1
           TASK=3
 
           if [ "$PR_SPRINT" -gt "$SPRINT" ]; then
-            echo "matches=true" >> $GITHUB_OUTPUT
-          elif echo "$TITLE" | grep -qE "^T${SPRINT}\.${TASK}\s*[-—]"; then
-            echo "matches=true" >> $GITHUB_OUTPUT
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          elif [ "$PR_SPRINT" -eq "$SPRINT" ] && [ "$PR_TASK" -eq "$TASK" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
           else
-            echo "matches=false" >> $GITHUB_OUTPUT
-            echo "FAIL: PR title does not match T${SPRINT}.${TASK}"
-            exit 1
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "SKIP: PR T${PR_SPRINT}.${PR_TASK} does not require T${SPRINT}.${TASK} tests"
           fi
 
+  Task_1-3_Testing:
+    name: Task 1.3 testing
+    needs: gate
+    if: needs.gate.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    steps:
       - uses: actions/checkout@v4
 
       - name: Server starts with valid config
