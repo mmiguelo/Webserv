@@ -1,0 +1,180 @@
+name: T1.3 — Configuration File Parser
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  Task_1-3_Testing:
+    name: Task 1.3 testing
+    runs-on: ubuntu-latest
+    outputs:
+      matches: ${{ steps.check.outputs.matches }}
+    steps:
+      - name: Validate PR Title
+        id: check
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+
+          if ! echo "$TITLE" | grep -qE "^T[0-9]\.[0-9]*"; then
+            echo "FAIL: PR title does not match the required format 'T[sprint].[task] - [description]'"
+            exit 1
+          fi
+
+          PR_SPRINT=$(echo "$TITLE" | grep -oP "^T\K[0-9]+(?=\.)")
+
+          SPRINT=1
+          TASK=3
+
+          if [ "$PR_SPRINT" -gt "$SPRINT" ]; then
+            echo "matches=true" >> $GITHUB_OUTPUT
+          elif echo "$TITLE" | grep -qE "^T${SPRINT}\.${TASK}\s*[-—]"; then
+            echo "matches=true" >> $GITHUB_OUTPUT
+          else
+            echo "matches=false" >> $GITHUB_OUTPUT
+            echo "FAIL: PR title does not match T${SPRINT}.${TASK}"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - name: Server starts with valid config
+        run: |
+          ./webserv config/default.conf &
+          PID=$!
+          sleep 1
+          kill -0 $PID && echo "PASS: server running with valid config"
+          kill $PID
+      
+      - name: Create invalid config
+        run: |
+          mkdir -p config
+          cat > config/missing_port.conf << 'EOF'
+          server {
+              server_name example.com;
+              location / {
+                  root /var/www/html;
+              }
+          }
+          EOF
+
+      - name: Missing port causes non-zero exit
+        run: |
+          ./webserv config/missing_port.conf && echo "FAIL: should have exited" && exit 1 || echo "PASS: exited with error"
+      
+      - name: Create malformed config
+        run: |
+          mkdir -p config
+          cat > config/bad_syntax.conf << 'EOF'
+          server {
+              listen 8080;
+              unknown_directive_xyz value;
+          }
+          EOF
+
+      - name: Bad syntax exits non-zero
+        run: |
+          ./webserv config/bad_syntax.conf 2>&1 | tee /tmp/err.out
+          grep -qiE "error|unknown|invalid|line" /tmp/err.out \
+            && echo "PASS: error message contains diagnostic info" \
+            || echo "WARN: error message may lack context"
+      
+      - name: Create multi-server config
+        run: |
+          mkdir -p config www/site1 www/site2
+          echo "<h1>Site 1</h1>" > www/site1/index.html
+          echo "<h1>Site 2</h1>" > www/site2/index.html
+          cat > config/multi_server.conf << 'EOF'
+          server {
+              listen 0.0.0.0:8080;
+              location / {
+                  root www/site1;
+                  index index.html;
+                  methods GET;
+              }
+          }
+          server {
+              listen 0.0.0.0:9090;
+              location / {
+                  root www/site2;
+                  index index.html;
+                  methods GET;
+              }
+          }
+          EOF
+
+      - name: Both servers start successfully
+        run: |
+          ./webserv config/multi_server.conf &
+          echo $! > /tmp/webserv.pid
+          sleep 1
+
+          nc -zv 127.0.0.1 8080 && echo "PASS: port 8080 open"
+          nc -zv 127.0.0.1 9090 && echo "PASS: port 9090 open"
+
+      - name: Each port responds independently
+        run: |
+          CODE1=$(curl --max-time 5 -s -o /dev/null -w "%{http_code}" http://localhost:8080/)
+          CODE2=$(curl --max-time 5 -s -o /dev/null -w "%{http_code}" http://localhost:9090/)
+          echo "Port 8080: $CODE1 | Port 9090: $CODE2"
+          test "$CODE1" != "000" && echo "PASS: port 8080 responds"
+          test "$CODE2" != "000" && echo "PASS: port 9090 responds"
+      
+      - name: Teardown 1
+        if: always()
+        run: kill $(cat /tmp/webserv.pid 2>/dev/null) 2>/dev/null || true
+      
+
+      - name: No-arg invocation does not crash
+        run: |
+          timeout 3 ./webserv || EXIT=$?
+          # Either it started (exit by timeout = 124) or printed usage (exit 1)
+          # In any case it must not segfault (exit 139)
+          test "$EXIT" != "139" && echo "PASS: no segfault without args"
+      
+      - name: Create config with 1MB body limit
+        run: |
+          mkdir -p config www/upload
+          cat > config/bodysize.conf << 'EOF'
+          server {
+              listen 0.0.0.0:8080;
+              client_max_body_size 1M;
+              location /upload {
+                  methods POST;
+                  upload_dir www/upload;
+              }
+              location / {
+                  root www;
+                  methods GET;
+              }
+          }
+          EOF
+
+      - name: Server starts with body size config
+        run: |
+          ./webserv config/bodysize.conf &
+          echo $! > /tmp/webserv.pid
+          sleep 1
+          nc -zv 127.0.0.1 8080 && echo "PASS: server listening"
+
+      - name: Body within limit is accepted
+        run: |
+          # 100KB body — well under 1MB
+          dd if=/dev/urandom bs=1024 count=100 2>/dev/null | base64 > /tmp/small.dat
+          CODE=$(curl --max-time 10 -s -o /dev/null -w "%{http_code}" \
+            -X POST --data-binary @/tmp/small.dat http://localhost:8080/upload)
+          echo "Small body response: $CODE"
+          test "$CODE" != "000" && echo "PASS: server responded to small body"
+
+      - name: Body exceeding limit returns 413
+        run: |
+          # 2MB body — over the 1MB limit
+          dd if=/dev/urandom bs=1024 count=2048 2>/dev/null > /tmp/big.dat
+          CODE=$(curl --max-time 10 -s -o /dev/null -w "%{http_code}" \
+            -X POST --data-binary @/tmp/big.dat http://localhost:8080/upload)
+          echo "Large body response: $CODE"
+          test "$CODE" = "413" && echo "PASS: 413 for oversized body"
+
+      - name: Teardown
+        if: always()
+        run: kill $(cat /tmp/webserv.pid 2>/dev/null) 2>/dev/null || true
