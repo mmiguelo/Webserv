@@ -5,8 +5,8 @@ on:
     branches: [ main ]
 
 jobs:
-  check-pr-title:
-    name: Check PR title matches
+  Task_1-1_Testing:
+    name: Task 1.1 testing
     runs-on: ubuntu-latest
     outputs:
       matches: ${{ steps.check.outputs.matches }}
@@ -32,60 +32,42 @@ jobs:
             echo "matches=true" >> $GITHUB_OUTPUT
           else
             echo "matches=false" >> $GITHUB_OUTPUT
+            echo "FAIL: PR title does not match T${SPRINT}.${TASK}"
+            exit 1
           fi
-
-  build:
-    name: Build - strict C++98
-    runs-on: ubuntu-latest
-    needs: check-pr-title
-    if: always() && (github.event_name != 'pull_request' || needs.check-pr-title.outputs.matches == 'true')
-    steps:
+        
       - uses: actions/checkout@v4
+      
+      #────── BUILD
       - name: Compile with strict flags
         run: make
-
+      
       - name: Verify binary exists
         run: test -f ./webserv && echo "Binary exists"
-
-  makefile-rules:
-    name: Makefile - all rules work
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - uses: actions/checkout@v4
-
+      
+      #──── MAKEFILE
+      
       - name: make all
         run: make all
 
-      - name: make clean - removes objects
+      - name: make clean - removes object
         run: |
           make clean
           find . -name "*.o" | grep -q . && echo "FAIL: .o files remain" && exit 1
           echo "PASS: no .o files after clean"
-
+      
       - name: make fclean - removes binary
         run: |
           make fclean
-          test ! -f ./webserv && echo "PASS: binary removed"
-
+          test ! -f ./webserv && echo "PASS: binary removed!"
+      
       - name: make re - full rebuild
         run: |
           make re
-          test -f ./webserv && echo "PASS: binary rebuilt after re"
-
-      - name: make - no relink on second call
-        run: |
-          make
           OUTPUT=$(make 2>&1)
           echo "$OUTPUT" | grep -q "Nothing to be done for" && echo "PASS: no relink" || (echo "FAIL: relinking" && exit 1)
 
-  cpp98-compliance:
-    name: C++98 - no modern syntax
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - uses: actions/checkout@v4
-
+      # ── C++98 Compliance ──
       - name: Check for auto keyword
         run: |
           grep -rn "\bauto\b" src/ includes/ && echo "FAIL: 'auto' found" && exit 1
@@ -98,3 +80,46 @@ jobs:
 
       - name: Compile explicitly with -std=c++98
         run: make fclean && make CXXFLAGS="-Wall -Wextra -Werror -std=c++98"
+      
+      # ── ePoll Accepts Connections
+      - name: Rebuild before server tests
+        run: make re
+
+      - name: Start server in background 
+        run: |
+          ./webserv config/default.conf &
+          echo $! > /tmp/webserv.pid
+          sleep 1
+      
+      - name: Test connection is accepted
+        run: |
+          curl --max-time 3 --connect-timeout 2 -s http://localhost:8080/ || true
+          nc -zv 127.0.0.1 8080 && echo "PASS: port 8080 is open"
+      
+      - name: Verify no crashes after connection
+        run: |
+          PID=$(cat /tmp/webserv.pid)
+          sleep 1
+          kill -0 $PID && echo "PASS: server still running"
+      
+      - name: Teardown
+        if: always()
+        run: |
+          PID=$(cat /tmp/webserv.pid 2>/dev/null) && kill $PID 2>/dev/null || true
+      
+      # ── Epoll Single Instance ──
+
+      - name: Count epoll_wait calls with strace
+        run: |
+          ./webserv config/default.conf &
+          PID=$!
+          sleep 0.5
+
+          timeout 2 strace -p $PID -e trace=epoll_wait 2>&1 | tee /tmp/strace.out || true
+
+          kill $PID 2>/dev/null || true
+
+          COUNT=$(grep -c "epoll_wait" /tmp/strace.out || true)
+          COUNT=${COUNT:-0}
+          echo "epoll_wait calls observed: $COUNT"
+          test "$COUNT" -ge 1 && echo "PASS: epoll_wait is being called"
