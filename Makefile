@@ -26,7 +26,7 @@ VPATH +=	$(SRC_DIR)/epoll
 #==============================================================================#
 
 GENERAL	=	main.cpp
-GENERAL	+=	utils.cpp
+#GENERAL	+=	utils.cpp
 
 EPOLL = EpollServer.cpp
 #EPOLL += EpollClient.cpp
@@ -36,7 +36,7 @@ HTTP = http.cpp
 FILE_CONFIG	= file_config.cpp
 
 SRC	=	$(GENERAL)
-SRC	+=	$(EPOLL)
+#SRC	+=	$(EPOLL)
 #SRC	+=	$(HTTP)
 #SRC	+=	$(FILE_CONFIG)
 
