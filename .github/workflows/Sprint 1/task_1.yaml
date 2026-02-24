@@ -1,0 +1,35 @@
+name: T1.1 - Scaffolding & epoll Skeleton
+
+on:
+  pull_request:
+    types: [opened, edited, synchronized, reopened]
+
+jobs:
+  check-pr-title:
+    name: Check PR title matches
+    runs-on: ubuntu-latest
+    outputs:
+      matches: ${{ steps.check.outputs.matches }}
+    steps:
+      - name: Validate PR Title
+        id: check
+        run: |
+          TITLE="${{ github.event.pull_request.title }}
+
+          if ! echo "$TITLE" | grep -qE "^T[0-9]\.[0-9]*"; then
+            echo "FAIL: PR title does not match the required format 'T[sprint].[task] - [description]'"
+            exit 1
+          fi
+
+          PR_SPRINT=$(echo "$TITLE" | grep -oP "^T\K[0-9]+(?=\.)")
+
+          SPRINT=1
+          TASK=1
+
+          if [ "$PR_SPRINT" -gt "$SPRINT" ]; then
+            echo "matches=true" >> $GITHUB_OUTPUT
+          elif echo "$TITLE" | grep -qE "^T${MY_SPRINT}\.${MY_TASK}\s*[-—]"; then
+            echo "matches=true" >> $GITHUB_OUTPUT
+          else
+            echo "matches=false" >> $GITHUB_OUTPUT
+          fi
