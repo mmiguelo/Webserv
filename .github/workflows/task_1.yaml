@@ -77,7 +77,7 @@ jobs:
         run: |
           make
           OUTPUT=$(make 2>&1)
-          echo "$OUTPUT" | grep -q "up to date" && echo "PASS: no relink" || (echo "FAIL: relinking" && exit 1)
+          echo "$OUTPUT" | grep -q "Nothing to be done for" && echo "PASS: no relink" || (echo "FAIL: relinking" && exit 1)
 
   cpp98-compliance:
     name: C++98 - no modern syntax
