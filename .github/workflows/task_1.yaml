@@ -62,7 +62,7 @@ jobs:
       - name: make re - full rebuild
         run: |
           make
-          OUTPUT=$(make 2>&l)
+          OUTPUT=$(make 2>&1)
           echo "$OUTPUT" | grep -q "Nothing to be done for" && echo "PASS: no relink" || (echo "FAIL: relinking" && exit 1)
 
       # ── C++98 Compliance ──
