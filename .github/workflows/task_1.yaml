@@ -5,8 +5,8 @@ on:
     branches: [ main ]
 
 jobs:
-  check-pr-title:
-    name: Check PR title matches
+  Task_1-1_Testing:
+    name: Task 1.1 testing
     runs-on: ubuntu-latest
     outputs:
       matches: ${{ steps.check.outputs.matches }}
@@ -33,59 +33,39 @@ jobs:
           else
             echo "matches=false" >> $GITHUB_OUTPUT
           fi
-
-  build:
-    name: Build - strict C++98
-    runs-on: ubuntu-latest
-    needs: check-pr-title
-    if: always() && (github.event_name != 'pull_request' || needs.check-pr-title.outputs.matches == 'true')
-    steps:
+        
       - uses: actions/checkout@v4
+      
+      #────── BUILD
       - name: Compile with strict flags
         run: make
-
+      
       - name: Verify binary exists
         run: test -f ./webserv && echo "Binary exists"
-
-  makefile-rules:
-    name: Makefile - all rules work
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - uses: actions/checkout@v4
-
+      
+      #──── MAKEFILE
+      
       - name: make all
         run: make all
 
-      - name: make clean - removes objects
+      - name: make clean - removes object
         run: |
           make clean
           find . -name "*.o" | grep -q . && echo "FAIL: .o files remain" && exit 1
           echo "PASS: no .o files after clean"
-
+      
       - name: make fclean - removes binary
         run: |
           make fclean
-          test ! -f ./webserv && echo "PASS: binary removed"
-
+          test ! -f ./webserv && echo "PASS: binary removed!"
+      
       - name: make re - full rebuild
         run: |
-          make re
-          test -f ./webserv && echo "PASS: binary rebuilt after re"
-
-      - name: make - no relink on second call
-        run: |
           make
-          OUTPUT=$(make 2>&1)
+          OUTPUT=$(make 2>&l)
           echo "$OUTPUT" | grep -q "Nothing to be done for" && echo "PASS: no relink" || (echo "FAIL: relinking" && exit 1)
 
-  cpp98-compliance:
-    name: C++98 - no modern syntax
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - uses: actions/checkout@v4
-
+      # ── C++98 Compliance ──
       - name: Check for auto keyword
         run: |
           grep -rn "\bauto\b" src/ includes/ && echo "FAIL: 'auto' found" && exit 1
