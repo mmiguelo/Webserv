@@ -14,7 +14,7 @@ jobs:
       - name: Validate PR Title
         id: check
         run: |
-          TITLE="${{ github.event.pull_request.title }}
+          TITLE="${{ github.event.pull_request.title }}"
 
           if ! echo "$TITLE" | grep -qE "^T[0-9]\.[0-9]*"; then
             echo "FAIL: PR title does not match the required format 'T[sprint].[task] - [description]'"
@@ -28,7 +28,7 @@ jobs:
 
           if [ "$PR_SPRINT" -gt "$SPRINT" ]; then
             echo "matches=true" >> $GITHUB_OUTPUT
-          elif echo "$TITLE" | grep -qE "^T${MY_SPRINT}\.${MY_TASK}\s*[-—]"; then
+          elif echo "$TITLE" | grep -qE "^T${SPRINT}\.${TASK}\s*[-—]"; then
             echo "matches=true" >> $GITHUB_OUTPUT
           else
             echo "matches=false" >> $GITHUB_OUTPUT
@@ -61,7 +61,7 @@ jobs:
         run: |
           make clean
           find . -name "*.o" | grep -q . && echo "FAIL: .o files remain" && exit 1
-          echo "PASS: no .o files after clean
+          echo "PASS: no .o files after clean"
 
       - name: make fclean - removes binary
         run: |
@@ -96,11 +96,5 @@ jobs:
           grep -rn "\bnullptr\b" src/ includes/ && echo "FAIL: 'nullptr' found" && exit 1
           echo "PASS: no nullptr"
 
-      - name: Check for ranged based for
-        run: |
-          grep -rn "for\s*(.*:.*)*" src/ includes/ && echo "FAIL: range-based for found" && exit 1
-          echo "PASS: no range-based for"
-
       - name: Compile explicitly with -std=c++98
         run: make fclean && make CXXFLAGS="-Wall -Wextra -Werror -std=c++98"
-          
