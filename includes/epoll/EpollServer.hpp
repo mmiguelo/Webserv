@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <arpa/inet.h>
 #include <cstring>
+#include <cerrno>
 #include <unistd.h>
 
 #define MAX_EVENTS 64
@@ -32,4 +33,4 @@ public:
 
     void init();
     void run();
-}
+};

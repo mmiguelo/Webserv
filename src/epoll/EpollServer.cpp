@@ -1,6 +1,6 @@
 #include "EpollServer.hpp"
 
-EpollServer::EpollServer(const std::string &host, int port) : _host(host), _port(port), _epollFd(-1), _listenFd(-1) {}
+EpollServer::EpollServer(const std::string &host, int port) : _listenFd(-1), _epollFd(-1), _port(port), _host(host) {}
 EpollServer::~EpollServer() {}
 
 void EpollServer::_createSocket()
