@@ -27,7 +27,7 @@ class HttpRequest {
         HttpStatusCode      getErrorCode() const;
         bool                hasHeader(const std::string& key) const;
         std::string         getHeader(const std::string& key) const;
-        const std::map<std::string, std::string>& getHeaders() const;
+        const std::map<std::string, std::string>& getAllHeaders() const;
 
         void    setMethod(HttpMethod method);
         void    setPath(const std::string& path);

@@ -54,7 +54,7 @@ bool HttpParser::feed(const std::string& data) {
 bool HttpParser::_parseRequestLine() {
     std::string::size_type pos = _buffer.find("\r\n");
     if (pos == std::string::npos)
-        return false;
+        return false; // incomplete: wait for more data
 
     std::string requestLine = _buffer.substr(0, pos);
     _buffer.erase(0, pos + 2);
@@ -62,6 +62,8 @@ bool HttpParser::_parseRequestLine() {
     std::vector<std::string> parts;
     std::stringstream ss(requestLine);
     std::string token;
+
+    // Split by spaces: METHOD URI VERSION
     while (std::getline(ss, token, ' '))
         parts.push_back(token);
 
@@ -71,6 +73,7 @@ bool HttpParser::_parseRequestLine() {
         return false;
     }
 
+    // this section is case sensitive
     HttpMethod method = stringToMethod(parts[0]);
     std::string uri     = parts[1];
     std::string version = parts[2];
@@ -81,9 +84,10 @@ bool HttpParser::_parseRequestLine() {
     }
     _request.setMethod(method);
 
+    // Split URI on '?' into path and query
     std::string::size_type qpos = uri.find('?');
     if (qpos == std::string::npos)
-        _request.setPath(uri);
+        _request.setPath(uri); // means it does not have a query
     else {
         _request.setPath(uri.substr(0, qpos));
         _request.setQuery(uri.substr(qpos + 1));
@@ -100,16 +104,53 @@ bool HttpParser::_parseRequestLine() {
     return true;
 }
 
+/* validations:
+Header must contain ':'
+Header size limit
+Encoding vs Content-Length
+Content-Lenght must be numeric
+Host required for HTTP
+*/
 bool HttpParser::_parseHeaders() {
+// parse until it hits the empty line (\r\n\r\n)
+// only one header per line
+    while (true) {
+        std::string::size_type pos = _buffer.find("\r\n");
+        if (pos == std::string::npos)
+            return false;
+
+        //verify if my header is larger then the limit. see HttpParser.hpp define
+        _headerSize += pos + 2;     
+        if (_headerSize > MAX_HEADER_SIZE) {
+            _request.setErrorCode(STATUS_REQUEST_HEADER_TOO_LARGE);
+            _state = PARSE_ERROR;
+            return false;
+        }
+
+        if (pos == 0) {
+            //TODO: parse ao conteudo porque ja chegamos ao fim dos headers
+
+        }
+
+        std::string line = _buffer.substr(0, pos);
+        _buffer.erase(0, pos + 2); //remove /r/n from the buffer
+
+        std::string::size_type colon = line.find(':');
+        if (colon == std::string::npos) {
+            _request.setErrorCode(STATUS_BAD_REQUEST);
+            _state = PARSE_ERROR;
+            return false;
+        }
+
+        std::string key = line.substr(0, colon);
+        std::string value = line.substr(colon + 1);
+        _request.setHeader(key, value); //it trims WS in that function
+    }
 }
 
-bool HttpParser::_parseBodyContentLength() {
+bool HttpParser::_parseBodyContentLength() {} //TASK 2
 
-}
-
-bool HttpParser::_parseBodyChunked() {
-
-}
+bool HttpParser::_parseBodyChunked() {} //TASK 2
 
 void HttpParser::reset() {
     _state = PARSE_REQUEST_LINE;

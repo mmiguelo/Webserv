@@ -3,7 +3,9 @@
 #include "HttpRequest.hpp"
 #include "utils.hpp"
 
-#define MAX_HEADER_SIZE 8192
+// to prevent memory abuse on header
+// 8192 (8kb) is the default on NGINX
+#define MAX_HEADER_SIZE 8192 
 
 class HttpParser {
     private:
