@@ -70,7 +70,7 @@ void EpollServer::_acceptNewClient()
         _setNonBlocking(client_fd);
 
         std::cout << "New Client fd = " << client_fd << std::endl;
-        close(client_fd);
+        // close(client_fd);
     }
 }
 
