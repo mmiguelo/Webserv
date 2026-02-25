@@ -1,0 +1,127 @@
+name: T1.2 — HTTP Request Parser Skeleton
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  gate:
+    name: Check PR Title
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Validate PR Title
+        id: check
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+
+          if ! echo "$TITLE" | grep -qE "^T[0-9]\.[0-9]*"; then
+            echo "FAIL: PR title does not match the required format 'T[sprint].[task] - [description]'"
+            exit 1
+          fi
+
+          PR_SPRINT=$(echo "$TITLE" | grep -oP "^T\K[0-9]+(?=\.)")
+          PR_TASK=$(echo "$TITLE" | grep -oP "^T[0-9]+\.\K[0-9]+")
+
+          SPRINT=1
+          TASK=2
+
+          if [ "$PR_SPRINT" -gt "$SPRINT" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          elif [ "$PR_SPRINT" -eq "$SPRINT" ] && [ "$PR_TASK" -eq "$TASK" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "SKIP: PR T${PR_SPRINT}.${PR_TASK} does not require T${SPRINT}.${TASK} tests"
+          fi
+
+  Task_1-2_Testing:
+    name: Task 1.2 testing
+    needs: gate
+    if: needs.gate.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile with strict flags
+        run: make
+
+      - name: Verify binary exists
+        run: test -f ./webserv && echo "Binary exists"
+
+      - name: Parser Valid Get
+        run: |
+          ./webserv config/default.conf &
+          echo $! > /tmp/webserv.pid
+          sleep 1
+      
+      - name: GET Request is accepted without hang
+        run: |
+          RESPONSE=$(curl --max-time 5 -s -o /dev/null -w "%{http_code}" http://localhost:8080/)
+          echo "Response code: $RESPONSE"
+          test "$RESPONSE" != "000" && echo "PASS: server responded"
+      
+      - name: GET with query string does not crash server
+        run: |
+          curl --max-time 5 -s "http://localhost:8080/path?foo=bar&baz=qux" -o /dev/null
+          PID=$(cat /tmp/webserv.pid)
+          kill -0 $PID && echo "PASS: server alive after query string request"
+      
+      - name: HEAD method supported
+        run: |
+          CODE=$(curl --max-time 5 -s -X HEAD -o /dev/null -w "%{http_code}" http://localhost:8080/)
+          test "$CODE" != "000" && echo "PASS: HEAD responded with $CODE"
+      
+      - name: Garbage request line returns 400
+        run: |
+          RESPONSE=$(printf "THISISNOTHTTP\r\n\r\n" | nc -q 1 127.0.0.1 8080 | head -1)
+          echo "Response: $RESPONSE"
+          echo "$RESPONSE" | grep -q "400" && echo "PASS: 400 returned for garbage"
+      
+      - name: Unsupported HTTP version returns 505
+        run: |
+          RESPONSE=$(printf "GET / HTTP/9.9\r\nHost: localhost\r\n\r\n" | nc -q 1 127.0.0.1 8080 | head -1)
+          echo "Response: $RESPONSE"
+          echo "$RESPONSE" | grep -q "505" && echo "PASS: 505 for bad version"
+
+      - name: Server survives bad requests and keeps running
+        run: |
+          for i in 1 2 3 4 5; do
+            printf "GARBAGE\r\n\r\n" | nc -q 1 127.0.0.1 8080 > /dev/null 2>&1 || true
+          done
+          PID=$(cat /tmp/webserv.pid)
+          kill -0 $PID && echo "PASS: server still alive after bad requests"
+      
+      - name: Good request still works after bad requests
+        run: |
+          CODE=$(curl --max-time 5 -s -o /dev/null -w "%{http_code}" http://localhost:8080/)
+          test "$CODE" != "000" && echo "PASS: server still responds after bad request"
+      
+      - name: Large header returns 431
+        run: |
+          # Generate a header larger than 8KB
+          BIG_HEADER=$(python3 -c "print('X-Big: ' + 'A' * 9000)")
+          RESPONSE=$(curl --max-time 5 -s -o /dev/null -w "%{http_code}" \
+            -H "$BIG_HEADER" http://localhost:8080/)
+          echo "Response: $RESPONSE"
+          echo "$RESPONSE" | grep -qE "431|400" && echo "PASS: large header rejected"
+
+      - name: Server survives oversized header
+        run: |
+          PID=$(cat /tmp/webserv.pid)
+          kill -0 $PID && echo "PASS: server alive after large header"
+      
+      - name: Slow request delivered in chunks does not hang
+        run: |
+          # Send request line, wait, then send headers — simulates slow client
+          (
+            printf "GET / HTTP/1.1\r\n"
+            sleep 0.5
+            printf "Host: localhost\r\n\r\n"
+          ) | nc -q 2 127.0.0.1 8080 | head -1 | grep -qE "HTTP/1\.[01]" \
+            && echo "PASS: server handled partial request"
+
+      - name: Teardown
+        if: always()
+        run: kill $(cat /tmp/webserv.pid 2>/dev/null) 2>/dev/null || true
