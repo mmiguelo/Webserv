@@ -74,8 +74,6 @@ bool HttpParser::_parseRequestLine() {
     HttpMethod method = stringToMethod(parts[0]);
     std::string uri     = parts[1];
     std::string version = parts[2];
-
-
     if (method == METHOD_UNKNOWN) {
         _request.setErrorCode(STATUS_METHOD_NOT_ALLOWED);
         _state = PARSE_ERROR;
