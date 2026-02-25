@@ -7,6 +7,7 @@ NAME		= webserv
 CXX			= c++
 CXXFLAGS	= -Wall -Wextra -Werror -Wshadow -std=c++98
 INCLUDES	= -I./includes
+INCLUDES	+= -I./includes/epoll
 
 #==============================================================================#
 #                                    PATHS                                     #
