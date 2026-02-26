@@ -106,15 +106,14 @@ void EpollServer::_handleClientData(int fd) {
         parser.getRequest().print(std::cout);
     }
 
-    // Send a basic HTTP response
-    std::string body = "Hello, World!";
     std::ostringstream oss;
-    oss << "HTTP/1.1 200 OK\r\n"
+    HttpRequest request = parser.getRequest();
+    oss << request.getVersion() << request.getErrorCode() << "OK\r\n"
         << "Content-Type: text/plain\r\n"
-        << "Content-Length: " << body.size() << "\r\n"
+        << "Content-Length: " << "11" << "\r\n"
         << "Connection: close\r\n"
         << "\r\n"
-        << body;
+        << "Hello World";
     std::string response = oss.str();
     write(fd, response.c_str(), response.size());
 }
