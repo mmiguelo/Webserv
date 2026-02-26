@@ -8,6 +8,7 @@ CXX			= c++
 CXXFLAGS	= -Wall -Wextra -Werror -Wshadow -std=c++98
 INCLUDES	= -I./includes
 INCLUDES	+= -I./includes/http
+INCLUDES	+= -I./includes/epoll
 
 #==============================================================================#
 #                                    PATHS                                     #
@@ -17,7 +18,7 @@ SRC_DIR		= src
 OBJ_DIR		= obj
 
 VPATH =		$(SRC_DIR)
-#VPATH +=	$(SRC_DIR)/epoll
+VPATH +=	$(SRC_DIR)/epoll
 VPATH +=	$(SRC_DIR)/http
 #VPATH +=	$(SRC_DIR)/file_config
 
@@ -28,7 +29,7 @@ VPATH +=	$(SRC_DIR)/http
 GENERAL	=	main.cpp
 GENERAL	+=	utils.cpp
 
-#EPOLL = EpollServer.cpp
+EPOLL = EpollServer.cpp
 #EPOLL += EpollClient.cpp
 
 HTTP =	HttpRequest.cpp
@@ -37,8 +38,8 @@ HTTP +=	HttpParser.cpp
 #FILE_CONFIG	= file_config.cpp
 
 SRC	=	$(GENERAL)
-#SRC	+=	$(EPOLL)
 SRC	+=	$(HTTP)
+SRC	+=	$(EPOLL)
 #SRC	+=	$(FILE_CONFIG)
 
 OBJ			= $(SRC:%.cpp=$(OBJ_DIR)/%.o)

@@ -1,4 +1,4 @@
-#include "HttpRequest.hpp"
+#include "utils.hpp"
 
 HttpRequest::HttpRequest() : _method(METHOD_UNKNOWN), _errorCode(STATUS_OK) {}
 

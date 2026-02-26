@@ -1,11 +1,20 @@
 #pragma once
 
-#include "HttpRequest.hpp"
+#include <string>
 #include "utils.hpp"
 
 // to prevent memory abuse on header
 // 8192 (8kb) is the default on NGINX
 #define MAX_HEADER_SIZE 8192 
+
+enum ParserState {
+    PARSE_REQUEST_LINE,
+    PARSE_HEADERS,
+    PARSE_BODY_CONTENT_LENGTH,
+    PARSE_BODY_CHUNKED,
+    PARSE_COMPLETE,
+    PARSE_ERROR
+};
 
 class HttpParser {
     private:

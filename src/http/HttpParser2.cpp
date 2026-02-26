@@ -1,6 +1,6 @@
-#include "HttpParser.hpp"
+#include "http/HttpParser.hpp"
 
-HttpParser::HttpParser() 
+HttpParser::HttpParser()
     : _state(PARSE_REQUEST_LINE),
       _contentLength(0),
       _headerSize(0) {}
@@ -16,128 +16,138 @@ HttpParser::HttpParser(const HttpParser& other)
 
 HttpParser& HttpParser::operator=(const HttpParser& other) {
     if (this != &other) {
-        _state = other._state;
-        _buffer = other._buffer;
-        _request = other._request;
+        _state         = other._state;
+        _buffer        = other._buffer;
+        _request       = other._request;
         _contentLength = other._contentLength;
-        _headerSize = other._headerSize;
+        _headerSize    = other._headerSize;
     }
     return *this;
 }
 
-// Feed raw data into the parser. Returns true when request is COMPLETE.
+void HttpParser::reset() {
+    _state         = PARSE_REQUEST_LINE;
+    _buffer.clear();
+    _request.reset();
+    _contentLength = 0;
+    _headerSize    = 0;
+}
+
+ParserState HttpParser::getState() const            { return _state; }
+HttpRequest& HttpParser::getRequest()               { return _request; }
+const HttpRequest& HttpParser::getRequest() const   { return _request; }
+
+// ── Main feed loop ──
+
 bool HttpParser::feed(const std::string& data) {
     _buffer.append(data);
-    while(true) {
+
+    while (true) {
         if (_state == PARSE_REQUEST_LINE) {
             if (!_parseRequestLine())
                 return false;
-        }
-        else if (_state == PARSE_HEADERS) {
+        } else if (_state == PARSE_HEADERS) {
             if (!_parseHeaders())
                 return false;
-        }
-        else if (_state == PARSE_BODY_CONTENT_LENGTH) {
+        } else if (_state == PARSE_BODY_CONTENT_LENGTH) {
             if (!_parseBodyContentLength())
                 return false;
-        }
-        else if (_state == PARSE_BODY_CHUNKED) {
+        } else if (_state == PARSE_BODY_CHUNKED) {
             if (!_parseBodyChunked())
                 return false;
+        } else {
+            break; // COMPLETE or ERROR
         }
-        else
-            break;
     }
     return _state == PARSE_COMPLETE;
 }
 
+// ── REQUEST LINE: "METHOD /path?query HTTP/1.1\r\n" ──
+
 bool HttpParser::_parseRequestLine() {
     std::string::size_type pos = _buffer.find("\r\n");
     if (pos == std::string::npos)
-        return false; // incomplete: wait for more data
+        return false; // incomplete — wait for more data
 
-    std::string requestLine = _buffer.substr(0, pos);
+    std::string line = _buffer.substr(0, pos);
     _buffer.erase(0, pos + 2);
 
-    std::vector<std::string> parts;
-    std::stringstream ss(requestLine);
-    std::string token;
-
     // Split by spaces: METHOD URI VERSION
-    while (std::getline(ss, token, ' '))
-        parts.push_back(token);
-
-    if (parts.size() != 3) {
+    std::string::size_type sp1 = line.find(' ');
+    if (sp1 == std::string::npos) {
+        _request.setErrorCode(STATUS_BAD_REQUEST);
+        _state = PARSE_ERROR;
+        return false;
+    }
+    std::string::size_type sp2 = line.find(' ', sp1 + 1);
+    if (sp2 == std::string::npos) {
         _request.setErrorCode(STATUS_BAD_REQUEST);
         _state = PARSE_ERROR;
         return false;
     }
 
-    // this section is case sensitive
-    HttpMethod method = stringToMethod(parts[0]);
-    std::string uri     = parts[1];
-    std::string version = parts[2];
-    if (method == METHOD_UNKNOWN) {
+    std::string method  = line.substr(0, sp1);
+    std::string uri     = line.substr(sp1 + 1, sp2 - sp1 - 1);
+    std::string version = line.substr(sp2 + 1);
+
+    // Validate method (case-sensitive)
+    HttpMethod m = stringToMethod(method);
+    if (m == METHOD_UNKNOWN) {
         _request.setErrorCode(STATUS_METHOD_NOT_ALLOWED);
         _state = PARSE_ERROR;
         return false;
     }
-    _request.setMethod(method);
+    _request.setMethod(m);
 
     // Split URI on '?' into path and query
     std::string::size_type qpos = uri.find('?');
-    if (qpos == std::string::npos)
-        _request.setPath(uri); // means it does not have a query
-    else {
+    if (qpos != std::string::npos) {
         _request.setPath(uri.substr(0, qpos));
         _request.setQuery(uri.substr(qpos + 1));
+    } else {
+        _request.setPath(uri);
     }
 
+    // Validate version
     if (version != "HTTP/1.1" && version != "HTTP/1.0") {
         _request.setErrorCode(STATUS_HTTP_VERSION_NOT_SUPPORTED);
         _state = PARSE_ERROR;
         return false;
     }
     _request.setVersion(version);
-    
+
     _state = PARSE_HEADERS;
     return true;
 }
 
-/* validations:
-Header must contain ':'
-Header size limit
-Encoding vs Content-Length
-Content-Lenght must be numeric
-Host required for HTTP
-*/
+// ── HEADERS: "Key: Value\r\n" ... "\r\n" ──
+
 bool HttpParser::_parseHeaders() {
-// parse until it hits the empty line (\r\n\r\n)
-// only one header per line
     while (true) {
         std::string::size_type pos = _buffer.find("\r\n");
         if (pos == std::string::npos)
-            return false;
+            return false; // incomplete line — wait
 
-        //verify if my header is larger then the limit. see HttpParser.hpp define
-        _headerSize += pos + 2;     
+        // Track total header size
+        _headerSize += pos + 2;
         if (_headerSize > MAX_HEADER_SIZE) {
             _request.setErrorCode(STATUS_REQUEST_HEADER_TOO_LARGE);
             _state = PARSE_ERROR;
             return false;
         }
 
+        // Empty line = end of headers
         if (pos == 0) {
-            //TODO: parse ao conteudo porque ja chegamos ao fim dos headers
             _buffer.erase(0, 2);
 
-            // version HTTP/1.1 requires to have a header "host"
+            // HTTP/1.1 requires Host header
             if (_request.getVersion() == "HTTP/1.1" && !_request.hasHeader("host")) {
                 _request.setErrorCode(STATUS_BAD_REQUEST);
                 _state = PARSE_ERROR;
                 return false;
             }
 
+            // Determine body handling: chunked wins over content-length
             std::string te = _request.getHeader("transfer-encoding");
             if (te.find("chunked") != std::string::npos) {
                 _state = PARSE_BODY_CHUNKED;
@@ -146,13 +156,7 @@ bool HttpParser::_parseHeaders() {
 
             std::string cl = _request.getHeader("content-length");
             if (!cl.empty()) {
-                char* endptr;
-                long len = std::strtol(cl.c_str(), &endptr, 10);
-                if (*endptr != '\0') {
-                    _request.setErrorCode(STATUS_BAD_REQUEST);
-                    _state = PARSE_ERROR;
-                    return false;
-                }
+                long len = std::atol(cl.c_str());
                 if (len < 0) {
                     _request.setErrorCode(STATUS_BAD_REQUEST);
                     _state = PARSE_ERROR;
@@ -161,17 +165,20 @@ bool HttpParser::_parseHeaders() {
                 _contentLength = static_cast<size_t>(len);
                 if (_contentLength == 0) {
                     _state = PARSE_COMPLETE;
-                    return false; //no need to reed more, since there will be no body
+                    return false; // done, break loop
                 }
                 _state = PARSE_BODY_CONTENT_LENGTH;
                 return true;
             }
+
+            // No body expected
             _state = PARSE_COMPLETE;
-            return false;
+            return false; // done, break loop
         }
 
+        // Parse "Key: Value"
         std::string line = _buffer.substr(0, pos);
-        _buffer.erase(0, pos + 2); //remove /r/n from the buffer
+        _buffer.erase(0, pos + 2);
 
         std::string::size_type colon = line.find(':');
         if (colon == std::string::npos) {
@@ -180,41 +187,52 @@ bool HttpParser::_parseHeaders() {
             return false;
         }
 
-        std::string key = line.substr(0, colon);
+        std::string key   = line.substr(0, colon);
         std::string value = line.substr(colon + 1);
-        _request.setHeader(key, value); //it trims WS in this function
+        _request.setHeader(key, value); // setHeader normalizes key + trims value
     }
 }
 
+// ── BODY with Content-Length ──
+
 bool HttpParser::_parseBodyContentLength() {
-    std::cout << "Parse body content length" << std::endl;
-    std::cout << _buffer << std::endl;
+    if (_buffer.size() < _contentLength)
+        return false; // wait for more data
+
+    _request.setBody(_buffer.substr(0, _contentLength));
+    _buffer.erase(0, _contentLength);
     _state = PARSE_COMPLETE;
-    return true;
-} //TASK 2
+    return false; // done, break loop
+}
+
+// ── BODY with chunked Transfer-Encoding ──
 
 bool HttpParser::_parseBodyChunked() {
-    std::cout << "Parse body chunked" << std::endl;
-    _state = PARSE_COMPLETE;
-    return true;
-} //TASK 2
+    while (true) {
+        // Find chunk size line
+        std::string::size_type pos = _buffer.find("\r\n");
+        if (pos == std::string::npos)
+            return false;
 
-void HttpParser::reset() {
-    _state = PARSE_REQUEST_LINE;
-    _buffer.clear();
-    _request.reset();
-    _contentLength = 0;
-    _headerSize = 0;
-}
+        std::string sizeStr = _buffer.substr(0, pos);
+        unsigned long chunkSize = std::strtoul(sizeStr.c_str(), NULL, 16);
 
-ParserState HttpParser::getState() const {
-    return _state;
-}
+        // Final chunk: "0\r\n\r\n"
+        if (chunkSize == 0) {
+            // Need the trailing \r\n after the 0-size chunk
+            if (_buffer.size() < pos + 4) // "0\r\n\r\n"
+                return false;
+            _buffer.erase(0, pos + 4);
+            _state = PARSE_COMPLETE;
+            return false;
+        }
 
-HttpRequest& HttpParser::getRequest() {
-    return _request;
-}
+        // Need: size-line + \r\n + chunk-data + \r\n
+        size_t needed = pos + 2 + chunkSize + 2;
+        if (_buffer.size() < needed)
+            return false;
 
-const HttpRequest& HttpParser::getRequest() const {
-    return _request;
+        _request.setBody(_request.getBody() + _buffer.substr(pos + 2, chunkSize));
+        _buffer.erase(0, needed);
+    }
 }
