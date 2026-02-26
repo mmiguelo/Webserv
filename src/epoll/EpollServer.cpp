@@ -91,7 +91,11 @@ void EpollServer::_handleClientData(int fd) {
     HttpParser parser;
     char buffer[10000];
 
-    read(fd, buffer, sizeof(buffer));
+    ssize_t bytesRead = read(fd, buffer, sizeof(buffer));
+    if (bytesRead <= 0) {
+        return;
+    }
+    buffer[bytesRead] = '\0';
 
     bool complete = parser.feed(buffer);
     if (complete) {
@@ -101,6 +105,18 @@ void EpollServer::_handleClientData(int fd) {
         std::cout << "\n=== Parse Error ===" << std::endl;
         parser.getRequest().print(std::cout);
     }
+
+    // Send a basic HTTP response
+    std::string body = "Hello, World!";
+    std::ostringstream oss;
+    oss << "HTTP/1.1 200 OK\r\n"
+        << "Content-Type: text/plain\r\n"
+        << "Content-Length: " << body.size() << "\r\n"
+        << "Connection: close\r\n"
+        << "\r\n"
+        << body;
+    std::string response = oss.str();
+    write(fd, response.c_str(), response.size());
 }
 
 void EpollServer::run()
