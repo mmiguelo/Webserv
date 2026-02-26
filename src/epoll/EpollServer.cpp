@@ -108,7 +108,7 @@ void EpollServer::_handleClientData(int fd) {
 
     std::ostringstream oss;
     HttpRequest request = parser.getRequest();
-    oss << request.getVersion() << request.getErrorCode() << "OK\r\n"
+    oss << request.getVersion() << " " << request.getErrorCode() << " OK\r\n"
         << "Content-Type: text/plain\r\n"
         << "Content-Length: " << "11" << "\r\n"
         << "Connection: close\r\n"
