@@ -95,7 +95,7 @@ void EpollServer::run()
         {
             if (errno == EINTR)
                 continue;
-            throw std::runtime_error("epoll did not waited ahahahah");
+            throw std::runtime_error("epoll did not waited");
         }
 
         for (int i = 0; i < n; i++)
