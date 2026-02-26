@@ -36,4 +36,7 @@ class HttpRequest {
         void    setBody(const std::string& body);
         void    setErrorCode(HttpStatusCode code);
         void    setHeader(const std::string& key, const std::string& value);
+
+        //debug
+        void    print(std::ostream& os = std::cout) const;
 };

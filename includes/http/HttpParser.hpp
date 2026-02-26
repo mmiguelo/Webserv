@@ -12,7 +12,7 @@ class HttpParser {
         ParserState _state;
         std::string _buffer;
         HttpRequest _request;
-        size_t _contentLength;
+        size_t _contentLength; //both have to be only positive
         size_t _headerSize;
     
         bool _parseRequestLine();
