@@ -106,6 +106,7 @@ void EpollServer::_handleClientData(int fd) {
         parser.getRequest().print(std::cout);
     }
 
+    // Make this more dynamic with custom variables on task 2
     std::ostringstream oss;
     HttpRequest request = parser.getRequest();
     oss << request.getVersion() << " " << request.getErrorCode() << " OK\r\n"
