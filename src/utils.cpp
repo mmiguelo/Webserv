@@ -51,3 +51,37 @@ std::string methodToString(HttpMethod method) {
         return "HEAD";
     return "UNKNOWN";
 }
+
+bool isValidDecimal(const std::string& s)
+{
+    if (s.empty())
+        return false;
+
+    for (size_t i = 0; i < s.size(); ++i)
+        if (!std::isdigit(s[i]))
+            return false;
+
+    // Now checks overflow
+    errno = 0;
+    std::strtoul(s.c_str(), NULL, 10);
+    if (errno == ERANGE)
+        return false;
+    return true;
+}
+
+bool isValidHexadecimal(const std::string& s)
+{
+    if (s.empty())
+        return false;
+
+    for (size_t i = 0; i < s.size(); ++i)
+        if (!std::isxdigit(s[i]))
+            return false;
+
+    // Check overflow
+    errno = 0;
+    std::strtoul(s.c_str(), NULL, 16);
+    if (errno == ERANGE)
+        return false;
+    return true;
+}

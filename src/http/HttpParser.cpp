@@ -25,7 +25,27 @@ HttpParser& HttpParser::operator=(const HttpParser& other) {
     return *this;
 }
 
-// Feed raw data into the parser. Returns true when request is COMPLETE.
+void HttpParser::reset() {
+    _state = PARSE_REQUEST_LINE;
+    _buffer.clear();
+    _request.reset();
+    _contentLength = 0;
+    _headerSize = 0;
+}
+
+ParserState HttpParser::getState() const {
+    return _state;
+}
+
+HttpRequest& HttpParser::getRequest() {
+    return _request;
+}
+
+const HttpRequest& HttpParser::getRequest() const {
+    return _request;
+}
+
+// Feed raw data into the parser. Returns true ONLY when request is COMPLETE.
 bool HttpParser::feed(const std::string& data) {
     _buffer.append(data);
     while(true) {
@@ -57,13 +77,13 @@ bool HttpParser::_parseRequestLine() {
         return false; // incomplete: wait for more data
 
     std::string requestLine = _buffer.substr(0, pos);
-    _buffer.erase(0, pos + 2);
+    _buffer.erase(0, pos + 2); //clean \r\n
 
     std::vector<std::string> parts;
     std::stringstream ss(requestLine);
     std::string token;
 
-    // Split by spaces: METHOD URI VERSION
+    // Split by spaces into METHOD URI VERSION
     while (std::getline(ss, token, ' '))
         parts.push_back(token);
 
@@ -128,7 +148,6 @@ bool HttpParser::_parseHeaders() {
         }
 
         if (pos == 0) {
-            //TODO: parse ao conteudo porque ja chegamos ao fim dos headers
             _buffer.erase(0, 2);
 
             // version HTTP/1.1 requires to have a header "host"
@@ -146,19 +165,12 @@ bool HttpParser::_parseHeaders() {
 
             std::string cl = _request.getHeader("content-length");
             if (!cl.empty()) {
-                char* endptr;
-                long len = std::strtol(cl.c_str(), &endptr, 10);
-                if (*endptr != '\0') {
+                if (!isValidDecimal(cl)) {
                     _request.setErrorCode(STATUS_BAD_REQUEST);
                     _state = PARSE_ERROR;
                     return false;
                 }
-                if (len < 0) {
-                    _request.setErrorCode(STATUS_BAD_REQUEST);
-                    _state = PARSE_ERROR;
-                    return false;
-                }
-                _contentLength = static_cast<size_t>(len);
+                _contentLength = static_cast<size_t>(std::strtol(cl.c_str(), NULL, 10));
                 if (_contentLength == 0) {
                     _state = PARSE_COMPLETE;
                     return false; //no need to reed more, since there will be no body
@@ -171,7 +183,7 @@ bool HttpParser::_parseHeaders() {
         }
 
         std::string line = _buffer.substr(0, pos);
-        _buffer.erase(0, pos + 2); //remove /r/n from the buffer
+        _buffer.erase(0, pos + 2);
 
         std::string::size_type colon = line.find(':');
         if (colon == std::string::npos) {
@@ -186,35 +198,57 @@ bool HttpParser::_parseHeaders() {
     }
 }
 
+// body when header has content-length
 bool HttpParser::_parseBodyContentLength() {
-    std::cout << "Parse body content length" << std::endl;
-    std::cout << _buffer << std::endl;
-    _state = PARSE_COMPLETE;
-    return true;
-} //TASK 2
+    if (_buffer.size() < _contentLength)
+        return false; // wait for more data
 
+    //this covers both buffer > contenlength and ==
+    _request.setBody(_buffer.substr(0, _contentLength));
+    _buffer.erase(0, _contentLength);
+    _state = PARSE_COMPLETE;
+    return false;
+}
+
+/* example of body with transfer-encoding for <Hello World!!!> :
+4\r\n <- size of the next chunked message you receive
+Hell\r\n
+A\r\n  <- size is hexadecimal
+o World!!!\r\n
+0\r\n <- it means message ended
+\r\n
+*/
 bool HttpParser::_parseBodyChunked() {
-    std::cout << "Parse body chunked" << std::endl;
-    _state = PARSE_COMPLETE;
-    return true;
-} //TASK 2
+    while (true) {
+        //find first chunk line
+        std::string::size_type pos = _buffer.find("\r\n");
+        if (pos == std::string::npos)
+            return false;
 
-void HttpParser::reset() {
-    _state = PARSE_REQUEST_LINE;
-    _buffer.clear();
-    _request.reset();
-    _contentLength = 0;
-    _headerSize = 0;
-}
+        std::string sizeStr = _buffer.substr(0, pos);
+        if (!isValidHexadecimal(sizeStr)) {
+            _request.setErrorCode(STATUS_BAD_REQUEST);
+            _state = PARSE_ERROR;
+            return false;
+        }
+        unsigned long chunkSize = std::strtoul(sizeStr.c_str(), NULL, 16);
 
-ParserState HttpParser::getState() const {
-    return _state;
-}
+        //Final chunk: "0\r\n\r\n"
+        if (chunkSize == 0) {
+            if (_buffer.size() < pos + 4)
+                return false;
+            _buffer.erase(0, pos + 4);
+            _state = PARSE_COMPLETE;
+            return false;
+        }
 
-HttpRequest& HttpParser::getRequest() {
-    return _request;
-}
+        // needed: size-line + \r\n (2) + chunk-data + \r\n (2)
+        size_t needed = pos + 2 + chunkSize + 2;
+        if (_buffer.size() < needed) //information missing
+            return false;
 
-const HttpRequest& HttpParser::getRequest() const {
-    return _request;
+        std::string chunk = _buffer.substr(pos + 2, chunkSize);
+        _request.setBody(_request.getBody() + chunk);
+        _buffer.erase(0, needed);
+    }
 }
