@@ -88,7 +88,7 @@ void EpollServer::init()
 }
 
 void EpollServer::_handleClientData(int fd) {
-    HttpParser parser;
+    HttpParser& parser = _parsers[fd];
     char buffer[10000];
 
     ssize_t bytesRead = read(fd, buffer, sizeof(buffer));
@@ -141,6 +141,7 @@ void EpollServer::run()
             else {
                 _handleClientData(fd);
                 close(fd);
+                _parsers.erase(fd);
             }
         }
     }

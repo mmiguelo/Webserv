@@ -19,6 +19,7 @@ private:
     int _epollFd;
     int _port;
     std::string _host;
+    std::map<int, HttpParser> _parsers;
 
     struct epoll_event _events[MAX_EVENTS];
 
