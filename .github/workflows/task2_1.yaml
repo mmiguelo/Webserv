@@ -46,7 +46,7 @@ jobs:
       options: --cap-add=SYS_PTRACE
     steps:
       - name: Install dependencies
-        run: apt-get update && apt-get install -y make g++ strace netcat-openbsd
+        run: apt-get update && apt-get install -y make g++ strace netcat-openbsd curl procps
 
       - uses: actions/checkout@v4
 
@@ -107,4 +107,3 @@ jobs:
             exit 1
           fi
           echo "PASS: all 100 concurrent connections received responses"
-          
