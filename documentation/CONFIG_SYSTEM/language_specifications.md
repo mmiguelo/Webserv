@@ -1,13 +1,13 @@
-# Configuration Language Specification (v1)
+# Configuration Language Specification (v2)
 
 ### Overall Structure
 
-The configuration file is intentionally minimal to keep it easy to manage (see example config file at /config). 
+The configuration file is intentionally minimal to keep it easy to manage. 
 
 It is composed only of `server` blocks. There are no global directives outside these blocks.
 Each `server` block represents an independent behavioral unit, which basically means - one website instance with its own rules.
 
-Multiple server blocks can exist in the same file. This allows our webserver to 
+Multiple server blocks can exist in the same file, as long as each one defines a unique host:port combination. This allows our webserver to:
 
 - Listen on different ports
 - Serve different content.
@@ -22,42 +22,63 @@ A `server` block defines two main things:
 - How to connect to it (ports).
 - The default behavior for a website.
 
-##### Directives:
+##### Core Server Directives:
 
 - `listen`: Specifies the port the server accepts connections on. You can use multiple listen directives in the same block if the site should respond on more than one port.
+	- If only a port is specified (e.g., `listen 8080;`), the host defaults to `0.0.0.0`.
 - `root` (Mandatory): Defines the base folder on your computer where the website's files are located.
-- `server_name` (Optional): Used when multiple servers share the same port. It checks the HTTP Host header to decide which server block to use. We use exact string matching for this.
+- `server_name` (Optional): Defines the domain name(s) associated with this server block.
+	- _Note: Since the current grammar enforces unique host:port combinations for every server block, the server name is informational and not used for server selection logic._
+
+##### Additonal Server-Level Directives:
+These define default behaviors that can be overridden later in `location` blocks:
+ 
 - `methods` (Optional): Restricts which HTTP methods (GET, POST, DELETE, etc.) are allowed for the entire server. These act as a restriction layer.
+- `client_max_body_size`: Limits the allowed size of a client request body (e.g., for uploads).
+- `error_page`: Defines custom HTML files to serve for specific error codes (e.g., 404, 500).
 
 Example:
 
 ```jsx
 server {
     listen 8080;
-    listen 8081;
-    server_name qualquer.com;
+    server_name example.com;
     root /var/www/html;
     methods GET POST;
+    client_max_body_size 5M;
+    error_page 404 /errors/404.html;
 }
 ```
 
 ### Location Block
 
 A `location` block defines behavior for a specific URI prefix.
-When we find multiple location blocks in the same file, we match the request path (case-sensitive) with the most specific one as explained in the design principles.
 
-A location directive may override the `root` and `methods` directives defined at server level. If a directive is not specified in a location block, the value defined at server level applies.
+##### Matching Strategy:
+When a request comes in, the server compares the request URI against all defined location blocks. It selects the block with the longest matching prefix. This is a case-sensitive string match.
+
+##### Overrides and Specific Behavior:
+A location block inherits settings from its parent server block, but it can define its own specific rules. The following directives can be used inside a location:
+
+- `root` (Overrides server default)
+- `methods` (Overrides server default)
+- `autoindex` (Enables/disables directory listing)
+- `upload_dir` (Sets a specific folder for file uploads)
+- `cgi_ext` (Defines which file extensions should be handled as CGI scripts)
+- `return` (Triggers an immediate HTTP redirection)
 
 Example:
 
 ```jsx
 location /images {
-		root /data/images;
+    root /data/images;
+    autoindex on;
 }
 
 location /images/icons {
+    # This is a longer, more specific match than /images
     root /data/icons;
-	methods GET; #overrides the server default and only allows GET here
+    methods GET; # Overrides server default to restrict access here
 }
 ```
 
@@ -69,21 +90,20 @@ When a request comes in, the server follows a simple, deterministic 2-step proce
 
 ##### Select the server
 
-1. It looks at the port the request came in on.
-2. If multiple server blocks are listening on that port, it compares the request's `Host` header against the `server_name` directives.
-3. If no `server_name` matches, the **first** server block declared in the file for that port is used as the default.
+When a network connection is accepted, the server knows exactly which interface and port the request came in on.
+Because IP:Port combinations are unique in the config file, the server immediately knows which single server block handles this connection. There is no ambiguity and no need to check the Host header for selection.
 
 ##### Select the location
 
-Once the server block is chosen, it looks for the best matching location block using the "longest prefix" rule described above.
+Once the server block is identified, it looks for the best matching `location` block using the "longest prefix" rule described above.
 
 ### Default Behavior and Fallback
 
 So what will happen if a request doesn't match any specific rules?
 
-##### Location fallbacjk
+##### Location fallback
 
-This mirrors the behavior of NGINX, where the absence of the `location` directive falls back to the server defaults.
+If no location block matches the request URI, the server-level configuration is applied.
 
 Example:
 
@@ -95,10 +115,6 @@ server {
 ```
 
 Even without any location blocks, this server is fully functional. A request to `/index.html` resolves to `/var/www/html/index.html`.
-
-##### Server fallback
-
-The same logic applies to selecting a server. If multiple servers share a port and no hostname matches, the first one defined in the file wins.
 
 ### Method Resolution and Defaults
 
@@ -115,19 +131,17 @@ Example:
 
 ```jsx
 server {
-		listen 8080;
-		root /var/www/html;
-		methods GET POST; #global restriction
+    listen 8080;
+    root /var/www/html;
+    methods GET POST; # Default global restriction
 
-		location /somefolder {
-		    methods POST; #specific override
-		}
-
+    location /api/delete-stuff {
+        methods DELETE; # Specific override for this path
+    }
 }
 ```
 
 In this configuration:
 
-- A request to `/index.html` allows GET and POST
-- A request to `/somefolder/file.txt` allows only POST
-
+- A request to `/index.html` allows only GET and POST (server default).
+- A request to `/api/delete-stuff/id` allows only DELETE (location override).
