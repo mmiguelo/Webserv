@@ -73,7 +73,7 @@ jobs:
           if [ ! -f "$DOCROOT/index.html" ]; then
             echo "<html><body>OK</body></html>" > "$DOCROOT/index.html"
           fi
-      
+
       # ═══════════════════════════════════════════════════════
       # START SERVER
       # ═══════════════════════════════════════════════════════
@@ -85,12 +85,12 @@ jobs:
           sleep 1
           PID=$(cat /tmp/webserv.pid)
           kill -0 $PID && echo "Server running (PID $PID)"
-      
+
       # ═══════════════════════════════════════════════════════
       # Test 1: 100 concurrent connections
       # ═══════════════════════════════════════════════════════
-      
-      - name: Test 1: 100 concurrent connections
+
+      - name: "Test 1: 100 concurrent connections"
         run: |
           mkdir -p /tmp/curl_out
           for i in $(seq 1 100); do
@@ -119,12 +119,12 @@ jobs:
             exit 1
           fi
           echo "PASS: all 100 concurrent connections received responses"
-      
+
       # ═══════════════════════════════════════════════════════
       # Test 2: Idle timeout - open socket, send nothing, wait
       # ═══════════════════════════════════════════════════════
 
-      - name: Test 2: Idle timeout - open socket, send nothing, wait
+      - name: "Test 2: Idle timeout - open socket, send nothing, wait"
         run: |
           PID=$(cat /tmp/webserv.pid)
 
@@ -154,11 +154,11 @@ jobs:
           fi
 
           kill -0 $PID && echo "PASS: idle connection timed out, no fd leak, server alive"
-      
+
       # ═══════════════════════════════════════════════════════
       # Test 3: Rapid open/close 500 connections (fd stability)
       # ═══════════════════════════════════════════════════════
-      
+
       - name: "Test 3: Rapid open/close 500 connections (fd stability)"
         run: |
           PID=$(cat /tmp/webserv.pid)
@@ -220,7 +220,7 @@ jobs:
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
             --max-time 5 --connect-timeout 3 \
             http://localhost:8080/ 2>/dev/null || echo "000")
-          
+
           echo "Response code after kill: $HTTP_CODE"
 
           if [ "$HTTP_CODE" -lt 100 ] || [ "$HTTP_CODE" -ge 600 ]; then
@@ -229,7 +229,7 @@ jobs:
           fi
 
           echo "PASS: server continues serving after client killed mid-request"
-      
+
       # ═══════════════════════════════════════════════════════
       # Test 5: Large response - partial send() buffer drain
       # ═══════════════════════════════════════════════════════
@@ -260,7 +260,6 @@ jobs:
 
           echo "PASS: full $EXPECTED bytes received - partial send() correctly handled"
           rm -f /tmp/received.bin
-      
 
       # ═══════════════════════════════════════════════════════
       # Verify if server is still healthy after tests
@@ -285,7 +284,7 @@ jobs:
           FD_COUNT=$(ls /proc/$PID/fd 2>/dev/null | wc -l)
           echo "Final fd count: $FD_COUNT"
           echo "PASS: server healthy after full tests"
-      
+
       - name: Teardown
         if: always()
         run: |
