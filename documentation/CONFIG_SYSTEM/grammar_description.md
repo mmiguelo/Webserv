@@ -4,7 +4,7 @@ This document is the official rulebook for our configuration language syntax.
 Just like languages have rules for spelling words and structuring sentences, our configuration file has to follow rules too. This document defines exactly what is allowed and what isn't when writing a config file.
 The grammar is expressed using a standard notation called EBNF (Extended Backus–Naur form). Since we are implementing a recursive descent parser, this grammar will map directly to the functions we need to write in our code.
 
-------------------------------------------------------------------------
+---
 
 ## 1. Lexical Structure (Tokenization)
 
@@ -36,7 +36,7 @@ Each token must store the line number where it was found so we can give precise 
 
 Whitespace, tabs and newlines are ignored except as token separators.
 
-------------------------------------------------------------------------
+---
 
 ## 2. Structural Grammar  
 
@@ -51,7 +51,7 @@ _Note: In the rules below, strings in quotes like `"listen"` mean the parser exp
 
 A configuration file consists of one or more server blocks.
 
-------------------------------------------------------------------------
+---
 
 ### Server Block
 
@@ -59,7 +59,7 @@ A configuration file consists of one or more server blocks.
 
 _A block starts with the word "server", an opening brace, the body content, and a closing brace._
 
-------------------------------------------------------------------------
+---
 
 ### Server Body
 
@@ -212,6 +212,6 @@ The following rules are enforced after structural parsing:
 
 ---
 
-This grammar defines the valid syntax of the configuration language.\
+This grammar defines the valid syntax of the configuration language.
 Behavioral resolution (server selection, location matching, method
 fallback) is defined separately in the language specification document.

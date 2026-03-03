@@ -7,7 +7,7 @@ The configuration file is intentionally minimal to keep it easy to manage.
 It is composed only of `server` blocks. There are no global directives outside these blocks.
 Each `server` block represents an independent behavioral unit, which basically means - one website instance with its own rules.
 
-Multiple server blocks can exist in the same file, as long as each one defines a unique host:port combination. This allows our webserver to:
+Multiple server blocks can exist in the same file, as long as each one defines a unique `host:port` combination. This allows our webserver to:
 
 - Listen on different ports
 - Serve different content.
