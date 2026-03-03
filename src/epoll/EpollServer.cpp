@@ -69,10 +69,30 @@ void EpollServer::_acceptNewClient()
         }
 
         _setNonBlocking(client_fd);
-        _registerToEpoll(client_fd, EPOLLIN);
+        _registerToEpoll(client_fd, EPOLLIN | EPOLLERR | EPOLLHUP);
+        ClientData data;
+        data.last_activity = time(NULL);
+        data.server_fd = _listenFd;
+        _clients[client_fd] = data;
         std::cout << "New Client fd = " << client_fd << std::endl;
-        //close(client_fd);
-        //TODO: probably it needs to be passed information to HttpParser here
+    }
+}
+
+void EpollServer::_checkTimeout()
+{
+    time_t now = time(NULL);
+    std::vector<int> fdTimeout;
+
+    for (std::map<int, ClientData>::iterator it = _clients.begin(); it != _clients.end(); ++it)
+    {
+        if (now - it->second.last_activity > MAX_TIMEOUT)
+            fdTimeout.push_back(it->first);
+    }
+
+    for (size_t i = 0; i < fdTimeout.size(); ++i)
+    {
+        utils::log_info("Client timed out, closing fd");
+        _closeClient(fdTimeout[i]);
     }
 }
 
@@ -83,47 +103,79 @@ void EpollServer::init()
     _setNonBlocking(_listenFd);
     _bindAndListen();
     _registerToEpoll(_listenFd, EPOLLIN);
+    _listenSet.insert(_listenFd);
 
     utils::log_info("Server listening");
 }
 
-void EpollServer::_handleClientData(int fd) {
-    HttpParser parser;
-    char buffer[10000];
+void EpollServer::_handleClientData(int fd)
+{
+    char buffer[4096];
+    ClientData &data = _clients[fd];
 
-    ssize_t bytesRead = read(fd, buffer, sizeof(buffer));
-    if (bytesRead <= 0) {
+    ssize_t bytesRead = recv(fd, buffer, sizeof(buffer), 0);
+    if (bytesRead <= 0)
+    {
+        _closeClient(fd);
         return;
     }
-    buffer[bytesRead] = '\0';
 
-    bool complete = parser.feed(buffer);
-    if (complete) {
-        std::cout << "\n=== Request Complete ===" << std::endl;
-        parser.getRequest().print(std::cout);
-    } else if (parser.getState() == PARSE_ERROR) {
-        std::cout << "\n=== Parse Error ===" << std::endl;
-        parser.getRequest().print(std::cout);
+    data.last_activity = time(NULL);
+
+    // Feed ONLY the new bytes to the parser, not the whole buffer
+    std::string newData(buffer, bytesRead);
+    bool complete = data.parser.feed(newData);
+    if (complete)
+    {
+        HttpRequest request = data.parser.getRequest();
+        std::string body = "Hello World";
+        std::ostringstream oss;
+        oss << request.getVersion() << " " << request.getErrorCode() << " OK\r\n"
+            << "Content-Type: text/plain\r\n"
+            << "Content-Length: " << body.size() << "\r\n"
+            << "Connection: close\r\n"
+            << "\r\n"
+            << body;
+        data.send_buf = oss.str();
+
+        struct epoll_event ev;
+        ev.events = EPOLLIN | EPOLLOUT | EPOLLERR | EPOLLHUP;
+        ev.data.fd = fd;
+        epoll_ctl(_epollFd, EPOLL_CTL_MOD, fd, &ev);
     }
+    else if (data.parser.getState() == PARSE_ERROR)
+    {
+        _closeClient(fd);
+    }
+}
 
-    // Make this more dynamic with custom variables on task 2
-    std::ostringstream oss;
-    HttpRequest request = parser.getRequest();
-    oss << request.getVersion() << " " << request.getErrorCode() << " OK\r\n"
-        << "Content-Type: text/plain\r\n"
-        << "Content-Length: " << "11" << "\r\n"
-        << "Connection: close\r\n"
-        << "\r\n"
-        << "Hello World";
-    std::string response = oss.str();
-    write(fd, response.c_str(), response.size());
+void EpollServer::_closeClient(int fd)
+{
+    epoll_ctl(_epollFd, EPOLL_CTL_DEL, fd, NULL);
+    close(fd);
+    _clients.erase(fd);
+    std::cout << "Connection closed on fd " << fd << std::endl;
+}
+
+void EpollServer::_handleClientResponse(int fd)
+{
+    ClientData &data = _clients[fd];
+    ssize_t responseSize = send(fd, data.send_buf.data(), data.send_buf.size(), 0);
+    if (responseSize <= 0)
+    {
+        _closeClient(fd);
+        return;
+    }
+    data.send_buf.erase(0, responseSize);
+    if (data.send_buf.empty())
+        _closeClient(fd);
 }
 
 void EpollServer::run()
 {
     while (true)
     {
-        int n = epoll_wait(_epollFd, _events, MAX_EVENTS, -1);
+        int n = epoll_wait(_epollFd, _events, MAX_EVENTS, 1000);
 
         if (n == -1)
         {
@@ -132,15 +184,28 @@ void EpollServer::run()
             throw std::runtime_error("epoll did not waited");
         }
 
+        _checkTimeout();
+
         for (int i = 0; i < n; i++)
         {
             int fd = _events[i].data.fd;
+            uint32_t ev = _events[i].events;
 
-            if (fd == _listenFd)
+            if (_listenSet.count(fd))
+            {
                 _acceptNewClient();
-            else {
-                _handleClientData(fd);
-                close(fd);
+            }
+            else
+            {
+                if (ev & (EPOLLERR | EPOLLHUP))
+                    _closeClient(fd);
+                else
+                {
+                    if (ev & EPOLLIN)
+                        _handleClientData(fd);
+                    if (_clients.count(fd) && (ev & EPOLLOUT))
+                        _handleClientResponse(fd);
+                }
             }
         }
     }
