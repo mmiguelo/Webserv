@@ -245,9 +245,10 @@ bool HttpParser::_parseBodyChunked() {
             return false;
         }
         unsigned long chunkSize = std::strtoul(sizeStr.c_str(), NULL, 16);
+        size_t totalBodySize = _request.getBody().size() + chunkSize;
         size_t client_max_body_size = 1048576; //configFile.getMaxBodySize();
 
-        if (chunkSize > client_max_body_size) {
+        if (totalBodySize > client_max_body_size) {
             _request.setErrorCode(STATUS_PAYLOAD_TOO_LARGE);
             _state = PARSE_ERROR;
             return false;
@@ -258,7 +259,7 @@ bool HttpParser::_parseBodyChunked() {
                 return false;
             _buffer.erase(0, pos + 4);
             _state = PARSE_COMPLETE;
-            return false;
+            return true;
         }
 
         // needed: size-line + \r\n (2) + chunk-data + \r\n (2)
