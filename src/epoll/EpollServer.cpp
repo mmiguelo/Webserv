@@ -122,7 +122,6 @@ void EpollServer::_handleClientData(int fd)
 
     data.last_activity = time(NULL);
 
-    // Feed ONLY the new bytes to the parser, not the whole buffer
     std::string newData(buffer, bytesRead);
     bool complete = data.parser.feed(newData);
     if (complete)
@@ -139,13 +138,31 @@ void EpollServer::_handleClientData(int fd)
         data.send_buf = oss.str();
 
         struct epoll_event ev;
-        ev.events = EPOLLIN | EPOLLOUT | EPOLLERR | EPOLLHUP;
+        ev.events = EPOLLOUT | EPOLLERR | EPOLLHUP;
         ev.data.fd = fd;
         epoll_ctl(_epollFd, EPOLL_CTL_MOD, fd, &ev);
     }
     else if (data.parser.getState() == PARSE_ERROR)
     {
-        _closeClient(fd);
+        HttpRequest request = data.parser.getRequest();
+        std::string version = request.getVersion();
+        if (version.empty())
+            version = "HTTP/1.1";
+
+        std::string body = "Bad Request";
+        std::ostringstream oss;
+        oss << version << " 400 Bad Request\r\n"
+            << "Content-Type: text/plain\r\n"
+            << "Content-Length: " << body.size() << "\r\n"
+            << "Connection: close\r\n"
+            << "\r\n"
+            << body;
+        data.send_buf = oss.str();
+
+        struct epoll_event ev;
+        ev.events = EPOLLOUT | EPOLLERR | EPOLLHUP;
+        ev.data.fd = fd;
+        epoll_ctl(_epollFd, EPOLL_CTL_MOD, fd, &ev);
     }
 }
 
