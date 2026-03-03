@@ -1,0 +1,294 @@
+name: T2.1 - Full Client Lifecycle & Non-blocking I/O
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  gate:
+    name: Check PR Title
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Validate PR Title
+        id: check
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+
+          if ! echo "$TITLE" | grep -qE "^T[0-9]\.[0-9]*"; then
+            echo "FAIL: PR title does not match the required format 'T[sprint].[task] - [description]'"
+            exit 1
+          fi
+
+          PR_SPRINT=$(echo "$TITLE" | grep -oP "^T\K[0-9]+(?=\.)")
+          PR_TASK=$(echo "$TITLE" | grep -oP "^T[0-9]+\.\K[0-9]+")
+
+          SPRINT=2
+          TASK=1
+
+          if [ "$PR_SPRINT" -gt "$SPRINT" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          elif [ "$PR_SPRINT" -eq "$SPRINT" ] && [ "$PR_TASK" -eq "$TASK" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "SKIP: PR T${PR_SPRINT}.${PR_TASK} does not require T${SPRINT}.${TASK} tests"
+          fi
+
+  Task_2-1_Lifecycle_Tests:
+    name: Task 2.1 Lifecycle Tests
+    needs: gate
+    if: needs.gate.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:latest
+      options: --cap-add=SYS_PTRACE
+    steps:
+      - name: Install dependencies
+        run: apt-get update && apt-get install -y make g++ strace netcat-openbsd curl procps
+
+      - uses: actions/checkout@v4
+
+      # ═══════════════════════════════════════════════════════
+      # BUILD
+      # ═══════════════════════════════════════════════════════
+      - name: Compile with strict flags
+        run: make
+
+      - name: Verify binary exists
+        run: test -f ./webserv && echo "Binary exists"
+
+      # ═══════════════════════════════════════════════════════
+      # Create large static file for partial-send test
+      # ═══════════════════════════════════════════════════════
+
+      - name: Prepare test fixtures
+        run: |
+          DOCROOT="www"
+          mkdir -p "$DOCROOT"
+          dd if=/dev/urandom of="$DOCROOT/large.bin" bs=1024 count=2048 2>/dev/null
+          EXPECTED=$(wc -c < "$DOCROOT/large.bin")
+          echo "Created large.bin with $EXPECTED bytes"
+          if [ ! -f "$DOCROOT/index.html" ]; then
+            echo "<html><body>OK</body></html>" > "$DOCROOT/index.html"
+          fi
+
+      # ═══════════════════════════════════════════════════════
+      # START SERVER
+      # ═══════════════════════════════════════════════════════
+
+      - name: Start server
+        run: |
+          ./webserv config/default.conf &
+          echo $! > /tmp/webserv.pid
+          sleep 1
+          PID=$(cat /tmp/webserv.pid)
+          kill -0 $PID && echo "Server running (PID $PID)"
+
+      # ═══════════════════════════════════════════════════════
+      # Test 1: 100 concurrent connections
+      # ═══════════════════════════════════════════════════════
+
+      - name: "Test 1: 100 concurrent connections"
+        run: |
+          mkdir -p /tmp/curl_out
+          for i in $(seq 1 100); do
+            curl -s -o /tmp/curl_out/resp_$i -w "%{http_code}" \
+              --max-time 10 --connect-timeout 5 \
+              http://localhost:8080/ > /tmp/curl_out/code_$i 2>/dev/null &
+          done
+          wait
+
+          SUCCESS=0
+          FAIL=0
+          for i in $(seq 1 100); do
+            CODE=$(cat /tmp/curl_out/code_$i 2>/dev/null || echo "000")
+            if [ "$CODE" -ge 100 ] 2>/dev/null && [ "$CODE" -lt 600 ] 2>/dev/null; then
+              SUCCESS=$((SUCCESS + 1))
+            else
+              FAIL=$((FAIL + 1))
+            fi
+          done
+
+          echo "SUCCESS: $SUCCESS / 100   FAIL: $FAIL"
+          rm -rf /tmp/curl_out
+
+          if [ "$SUCCESS" -lt 100 ]; then
+            echo "FAIL: only $SUCCESS out of 100 requests received a valid HTTP response"
+            exit 1
+          fi
+          echo "PASS: all 100 concurrent connections received responses"
+
+      # ═══════════════════════════════════════════════════════
+      # Test 2: Idle timeout - open socket, send nothing, wait
+      # ═══════════════════════════════════════════════════════
+
+      - name: "Test 2: Idle timeout - open socket, send nothing, wait"
+        run: |
+          PID=$(cat /tmp/webserv.pid)
+
+          BASELINE=$(ls /proc/$PID/fd 2>/dev/null | wc -l)
+          echo "Baseline fd count: $BASELINE"
+
+          nc -w 40 127.0.0.1 8080 < /dev/null > /dev/null 2>&1 &
+          NC_PID=$!
+          sleep 2
+
+          DURING=$(ls /proc/$PID/fd 2>/dev/null | wc -l)
+          echo "FD count with idle client: $DURING"
+
+          echo "Waiting up to 35 seconds for server to time out the idle connection"
+          sleep 35
+
+          AFTER=$(ls /proc/$PID/fd 2>/dev/null | wc -l)
+          echo "FD count after timeout: $AFTER"
+
+          kill $NC_PID 2>/dev/null || true
+
+          DIFF=$((AFTER - BASELINE))
+
+          if [ "$DIFF" -gt 1 ]; then
+            echo "FAIL: fd leak detected (baseline=$BASELINE, after=$AFTER, diff=$DIFF)"
+            exit 1
+          fi
+
+          kill -0 $PID && echo "PASS: idle connection timed out, no fd leak, server alive"
+
+      # ═══════════════════════════════════════════════════════
+      # Test 3: Rapid open/close 500 connections (fd stability)
+      # ═══════════════════════════════════════════════════════
+
+      - name: "Test 3: Rapid open/close 500 connections (fd stability)"
+        run: |
+          PID=$(cat /tmp/webserv.pid)
+
+          BASELINE=$(ls /proc/$PID/fd 2>/dev/null | wc -l)
+          echo "Baseline fd count: $BASELINE"
+
+          for i in $(seq 1 500); do
+            nc -zv 127.0.0.1 8080 2>/dev/null &
+            if [ $((i % 50)) -eq 0 ]; then
+              wait
+            fi
+          done
+          wait
+
+          sleep 3
+
+          AFTER=$(ls /proc/$PID/fd/ 2>/dev/null | wc -l)
+          echo "Fd count after 500 rapid connections: $AFTER"
+
+          DIFF=$((AFTER - BASELINE))
+          echo "Fd difference: $DIFF"
+
+          if [ "$DIFF" -gt 5 ]; then
+            echo "FAIL: fd leak detected after 500 rapid connections (baseline=$BASELINE, after=$AFTER, diff=$DIFF)"
+            exit 1
+          fi
+
+          kill -0 $PID && echo "PASS: fd count stable after 500 rapid open/close connections"
+
+      # ═══════════════════════════════════════════════════════
+      # Test 4: Kill curl mid-request - server keeps serving
+      # ═══════════════════════════════════════════════════════
+
+      - name: "Test 4: Kill curl mid-request"
+        run: |
+          PID=$(cat /tmp/webserv.pid)
+
+          curl -s --limit-rate 1k --max-time 30 \
+            http://localhost:8080/large.bin -o /dev/null 2>/dev/null &
+          CURL_PID=$!
+          sleep 2
+
+          if kill -0 $CURL_PID 2>/dev/null; then
+            echo "Killing curl mid-transfer (PID $CURL_PID)..."
+            kill -9 $CURL_PID 2>/dev/null || true
+            wait $CURL_PID 2>/dev/null || true
+          else
+            echo "WARN: curl already finished, test may not be meaningful"
+          fi
+
+          sleep 1
+
+          if ! kill -0 $PID 2>/dev/null; then
+            echo "FAIL: server crashed after curl was killed mid-request"
+            exit 1
+          fi
+
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 5 --connect-timeout 3 \
+            http://localhost:8080/ 2>/dev/null || echo "000")
+
+          echo "Response code after kill: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" -lt 100 ] || [ "$HTTP_CODE" -ge 600 ]; then
+            echo "FAIL: server not responding after mid-request kill"
+            exit 1
+          fi
+
+          echo "PASS: server continues serving after client killed mid-request"
+
+      # ═══════════════════════════════════════════════════════
+      # Test 5: Large response - partial send() buffer drain
+      # ═══════════════════════════════════════════════════════
+
+      - name: "Test 5: Large response (partial send buffer drain)"
+        run: |
+          DOCROOT="www"
+          EXPECTED=$(wc -c < "$DOCROOT/large.bin")
+          echo "Expected file size: $EXPECTED bytes"
+
+          curl -s --max-time 30 --connect-timeout 5 \
+            http://localhost:8080/large.bin -o /tmp/received.bin 2>/dev/null
+          CURL_EXIT=$?
+
+          if [ ! -f /tmp/received.bin ]; then
+            echo "FAIL: no response received for large file"
+            exit 1
+          fi
+
+          RECEIVED=$(wc -c < /tmp/received.bin)
+          echo "Received: $RECEIVED bytes"
+
+          if [ "$RECEIVED" -ne "$EXPECTED" ]; then
+            echo "FAIL: size mismatch (expected=$EXPECTED, received=$RECEIVED)"
+            echo "This indicates send_buf was not fully drained across EPOLLOUT events"
+            exit 1
+          fi
+
+          echo "PASS: full $EXPECTED bytes received - partial send() correctly handled"
+          rm -f /tmp/received.bin
+
+      # ═══════════════════════════════════════════════════════
+      # Verify if server is still healthy after tests
+      # ═══════════════════════════════════════════════════════
+      - name: "Final health check"
+        run: |
+          PID=$(cat /tmp/webserv.pid)
+          if ! kill -0 $PID 2>/dev/null; then
+            echo "FAIL: server is not running after tests"
+            exit 1
+          fi
+
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 5 http://localhost:8080/ 2>/dev/null || echo "000")
+          echo "Final health check response: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" -lt 100 ] || [ "$HTTP_CODE" -ge 600 ]; then
+            echo "FAIL: server unresponsive after all tests"
+            exit 1
+          fi
+
+          FD_COUNT=$(ls /proc/$PID/fd 2>/dev/null | wc -l)
+          echo "Final fd count: $FD_COUNT"
+          echo "PASS: server healthy after full tests"
+
+      - name: Teardown
+        if: always()
+        run: |
+          PID=$(cat /tmp/webserv.pid 2>/dev/null) && kill $PID 2>/dev/null || true
+          sleep 1
+          PID=$(cat /tmp/webserv.pid 2>/dev/null) && kill -9 $PID 2>/dev/null || true
+          rm -f /tmp/webserv.pid
