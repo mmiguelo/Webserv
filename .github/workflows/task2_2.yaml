@@ -178,52 +178,6 @@ jobs:
           echo "PASS: chunked POST decoded and echoed correctly"
 
       # ═══════════════════════════════════════════════════════
-      # Test 5: HEAD request — headers only, no body bytes
-      # ═══════════════════════════════════════════════════════
-      - name: "Test 5: HEAD returns headers only, zero body bytes"
-        run: |
-          # curl -I sends HEAD; -D - dumps headers, -o /dev/null discards body
-          HEAD_RESPONSE=$(curl -sI --max-time 5 http://localhost:8080/ 2>/dev/null)
-          GET_RESPONSE=$(curl -s --max-time 5 http://localhost:8080/ 2>/dev/null)
-
-          echo "HEAD response:"
-          echo "$HEAD_RESPONSE"
-
-          # Must return 200
-          if ! echo "$HEAD_RESPONSE" | grep -q "HTTP/1.1 200"; then
-            echo "FAIL: HEAD did not return 200"
-            exit 1
-          fi
-
-          # HEAD must have Content-Length header
-          if ! echo "$HEAD_RESPONSE" | grep -qi "Content-Length:"; then
-            echo "FAIL: HEAD response missing Content-Length"
-            exit 1
-          fi
-
-          # Verify HEAD Content-Length matches GET Content-Length
-          HEAD_CL=$(echo "$HEAD_RESPONSE" | grep -i "Content-Length:" | grep -oP '\d+')
-          GET_CL=${#GET_RESPONSE}
-
-          echo "HEAD Content-Length: $HEAD_CL"
-          echo "GET body size: $GET_CL"
-
-          # HEAD response body must be empty (curl -I downloads nothing)
-          HEAD_BODY_SIZE=$(curl -s -I --max-time 5 \
-            -o /tmp/head_body.bin -D /dev/null \
-            http://localhost:8080/ 2>/dev/null; wc -c < /tmp/head_body.bin)
-
-          echo "HEAD body bytes received: $HEAD_BODY_SIZE"
-
-          if [ "$HEAD_BODY_SIZE" -ne 0 ]; then
-            echo "FAIL: HEAD response contains $HEAD_BODY_SIZE body bytes (must be 0)"
-            exit 1
-          fi
-
-          echo "PASS: HEAD returns headers only, zero body bytes, Content-Length=$HEAD_CL"
-          rm -f /tmp/head_body.bin
-
-      # ═══════════════════════════════════════════════════════
       # FINAL HEALTH CHECK
       # ═══════════════════════════════════════════════════════
       - name: "Final health check"
@@ -270,6 +224,52 @@ jobs:
           fi
 
           echo "PASS: oversized POST body correctly rejected with 413"
+
+      # ═══════════════════════════════════════════════════════
+      # Test 5: HEAD request — headers only, no body bytes
+      # ═══════════════════════════════════════════════════════
+      - name: "Test 5: HEAD returns headers only, zero body bytes"
+        run: |
+          # curl -I sends HEAD; -D - dumps headers, -o /dev/null discards body
+          HEAD_RESPONSE=$(curl -sI --max-time 5 http://localhost:8080/ 2>/dev/null)
+          GET_RESPONSE=$(curl -s --max-time 5 http://localhost:8080/ 2>/dev/null)
+
+          echo "HEAD response:"
+          echo "$HEAD_RESPONSE"
+
+          # Must return 200
+          if ! echo "$HEAD_RESPONSE" | grep -q "HTTP/1.1 200"; then
+            echo "FAIL: HEAD did not return 200"
+            exit 1
+          fi
+
+          # HEAD must have Content-Length header
+          if ! echo "$HEAD_RESPONSE" | grep -qi "Content-Length:"; then
+            echo "FAIL: HEAD response missing Content-Length"
+            exit 1
+          fi
+
+          # Verify HEAD Content-Length matches GET Content-Length
+          HEAD_CL=$(echo "$HEAD_RESPONSE" | grep -i "Content-Length:" | grep -oP '\d+')
+          GET_CL=${#GET_RESPONSE}
+
+          echo "HEAD Content-Length: $HEAD_CL"
+          echo "GET body size: $GET_CL"
+
+          # HEAD response body must be empty (curl -I downloads nothing)
+          HEAD_BODY_SIZE=$(curl -s -I --max-time 5 \
+            -o /tmp/head_body.bin -D /dev/null \
+            http://localhost:8080/ 2>/dev/null; wc -c < /tmp/head_body.bin)
+
+          echo "HEAD body bytes received: $HEAD_BODY_SIZE"
+
+          if [ "$HEAD_BODY_SIZE" -ne 0 ]; then
+            echo "FAIL: HEAD response contains $HEAD_BODY_SIZE body bytes (must be 0)"
+            exit 1
+          fi
+
+          echo "PASS: HEAD returns headers only, zero body bytes, Content-Length=$HEAD_CL"
+          rm -f /tmp/head_body.bin
 
       # ═══════════════════════════════════════════════════════
       # TEARDOWN
