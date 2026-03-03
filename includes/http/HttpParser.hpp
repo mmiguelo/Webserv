@@ -42,4 +42,5 @@ class HttpParser {
         ParserState     getState() const;
         HttpRequest&    getRequest();
         const HttpRequest& getRequest() const;
+        size_t          getHeaderSize() const;
 };

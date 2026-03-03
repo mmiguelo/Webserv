@@ -107,19 +107,18 @@ void EpollServer::_handleClientData(int fd) {
     int statusCode = static_cast<int>(request.getErrorCode());
 
     if (parser.getState() == PARSE_ERROR) {
-        std::cout << "\n=== Parse Error ===" << std::endl;
-        parser.getRequest().print(std::cout);
         if (statusCode == STATUS_METHOD_NOT_ALLOWED)
-            response.buildError(405);
+            response.buildError(405, request);
+        else if (statusCode == STATUS_REQUEST_HEADER_TOO_LARGE)
+            response.buildError(431, request);
         else
-            response.buildError(400);
+            response.buildError(400, request);
     }
     else if (complete) {
-        std::cout << "\n=== Request Complete ===" << std::endl;
-        parser.getRequest().print(std::cout);
         if (statusCode >= 400) {
-            response.buildError(statusCode);
-        } else {
+            response.buildError(statusCode, request);
+        } 
+        else {
             // TODO: This will be replaced by actual file serving / CGI output
             std::string body = "Request received successfully.\nPath: " + request.getPath();
             if (!request.getBody().empty())
@@ -128,7 +127,7 @@ void EpollServer::_handleClientData(int fd) {
         }
     }
     else
-        return ;
+        response.buildError(400, request); // Incomplete request, treat as bad request
 
     std::string raw = response.serialize(request.getMethod());
     write(fd, raw.c_str(), raw.size());

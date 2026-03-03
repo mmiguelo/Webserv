@@ -140,7 +140,7 @@ bool HttpParser::_parseHeaders() {
             return false;
 
         //verify if my header is larger then the limit. see HttpParser.hpp define
-        _headerSize += pos + 2;     
+        _headerSize += pos + 2;    
         if (_headerSize > MAX_HEADER_SIZE) {
             _request.setErrorCode(STATUS_REQUEST_HEADER_TOO_LARGE);
             _state = PARSE_ERROR;
@@ -182,13 +182,13 @@ bool HttpParser::_parseHeaders() {
 
                 if (_contentLength == 0) {
                     _state = PARSE_COMPLETE;
-                    return false; //no need to reed more, since there will be no body
+                    return true; //no need to reed more, since there will be no body
                 }
                 _state = PARSE_BODY_CONTENT_LENGTH;
                 return true;
             }
             _state = PARSE_COMPLETE;
-            return false;
+            return true;
         }
 
         std::string line = _buffer.substr(0, pos);
@@ -207,6 +207,10 @@ bool HttpParser::_parseHeaders() {
     }
 }
 
+size_t HttpParser::getHeaderSize() const {
+    return _headerSize;
+}
+
 // body when header has content-length
 bool HttpParser::_parseBodyContentLength() {
     if (_buffer.size() < _contentLength)
@@ -216,7 +220,7 @@ bool HttpParser::_parseBodyContentLength() {
     _request.setBody(_buffer.substr(0, _contentLength));
     _buffer.erase(0, _contentLength);
     _state = PARSE_COMPLETE;
-    return false;
+    return true;
 }
 
 /* example of body with transfer-encoding for <Hello World!!!> :

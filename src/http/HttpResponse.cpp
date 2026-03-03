@@ -1,4 +1,5 @@
 #include "HttpResponse.hpp"
+#include "HttpRequest.hpp"
 
 //define the static member
 std::map<int, std::string> HttpResponse::_codeMsg;
@@ -62,9 +63,11 @@ void HttpResponse::build(int statusCode, const std::string& body, const std::str
     _version = version;
 }
 
-void HttpResponse::buildError(int statusCode) {
+void HttpResponse::buildError(int statusCode, const HttpRequest& request) {
+    _version = request.getVersion().empty() ? "HTTP/1.1" : request.getVersion();
     _statusCode = statusCode;
-    _contentType = "text/html";
+    std::string ct = request.getHeader("content-type");
+    _contentType = ct.empty() ? "text/html" : ct;
     std::ostringstream oss;
     oss << "<!DOCTYPE html>\n<html>\n<head><title>"
         << statusCode << " " << getStatusMessage(statusCode)
@@ -122,4 +125,8 @@ std::string HttpResponse::httpDate() const {
 
 bool HttpResponse::hasBody() const {
     return !(_statusCode == 204 || _statusCode == 304);
+}
+
+std::string HttpResponse::getVersion() const {
+    return _version;
 }
