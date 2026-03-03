@@ -25,10 +25,15 @@ enum HttpStatusCode {
     STATUS_FORBIDDEN                    = 403,
     STATUS_NOT_FOUND                    = 404,
     STATUS_METHOD_NOT_ALLOWED           = 405,
+    STATUS_REQUEST_TIMEOUT              = 408,
+    STATUS_PAYLOAD_TOO_LARGE            = 413,
+    STATUS_URI_TOO_LONG                 = 414,
     STATUS_REQUEST_HEADER_TOO_LARGE     = 431,
     STATUS_INTERNAL_SERVER_ERROR        = 500,
-    STATUS_HTTP_VERSION_NOT_SUPPORTED   = 505,
-    STATUS_SERVICE_UNAVAILABLE          = 503
+    STATUS_NOT_IMPLEMENTED              = 501,
+    STATUS_SERVICE_UNAVAILABLE          = 503,
+    STATUS_GATEWAY_TIMEOUT              = 504,
+    STATUS_HTTP_VERSION_NOT_SUPPORTED   = 505
 };
 
 class HttpRequest {
@@ -39,7 +44,8 @@ class HttpRequest {
         std::string                         _version;
         std::map<std::string, std::string>  _headers;
         std::string                         _body;
-        HttpStatusCode                      _errorCode;
+        HttpStatusCode                      _statusCode;
+
     public:
         HttpRequest();
         ~HttpRequest();
@@ -65,6 +71,7 @@ class HttpRequest {
         void    setBody(const std::string& body);
         void    setErrorCode(HttpStatusCode code);
         void    setHeader(const std::string& key, const std::string& value);
+        //void    initStatusCode();
 
         //debug
         void    print(std::ostream& os = std::cout) const;

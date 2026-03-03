@@ -34,6 +34,7 @@ EPOLL = EpollServer.cpp
 
 HTTP =	HttpRequest.cpp
 HTTP +=	HttpParser.cpp
+HTTP +=	HttpResponse.cpp
 
 #FILE_CONFIG	= file_config.cpp
 

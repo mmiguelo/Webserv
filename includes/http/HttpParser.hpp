@@ -5,7 +5,7 @@
 
 // to prevent memory abuse on header
 // 8192 (8kb) is the default on NGINX
-#define MAX_HEADER_SIZE 8192 
+#define MAX_HEADER_SIZE 8192
 
 enum ParserState {
     PARSE_REQUEST_LINE,

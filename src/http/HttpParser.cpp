@@ -170,7 +170,16 @@ bool HttpParser::_parseHeaders() {
                     _state = PARSE_ERROR;
                     return false;
                 }
+
                 _contentLength = static_cast<size_t>(std::strtol(cl.c_str(), NULL, 10));
+                size_t client_max_body_size = 1048576; //configFile.getMaxBodySize();
+
+                if (_contentLength > client_max_body_size) {
+                    _request.setErrorCode(STATUS_PAYLOAD_TOO_LARGE);
+                    _state = PARSE_ERROR;
+                    return false;
+                }
+
                 if (_contentLength == 0) {
                     _state = PARSE_COMPLETE;
                     return false; //no need to reed more, since there will be no body
@@ -232,7 +241,13 @@ bool HttpParser::_parseBodyChunked() {
             return false;
         }
         unsigned long chunkSize = std::strtoul(sizeStr.c_str(), NULL, 16);
+        size_t client_max_body_size = 1048576; //configFile.getMaxBodySize();
 
+        if (chunkSize > client_max_body_size) {
+            _request.setErrorCode(STATUS_PAYLOAD_TOO_LARGE);
+            _state = PARSE_ERROR;
+            return false;
+        }
         //Final chunk: "0\r\n\r\n"
         if (chunkSize == 0) {
             if (_buffer.size() < pos + 4)

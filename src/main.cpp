@@ -1,4 +1,5 @@
 #include "utils.hpp"
+#include "epoll/EpollServer.hpp"
 
 int main() {
     EpollServer server("0.0.0.0", 8080);

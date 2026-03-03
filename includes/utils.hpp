@@ -19,10 +19,9 @@
 #include <sstream>
 #include <vector>
 #include <sstream>
+#include <cerrno>
 
 #include "http/HttpRequest.hpp"
-#include "http/HttpParser.hpp"
-#include "epoll/EpollServer.hpp"
 
 /*=============================================================================#
 #                              UTILITY FUNCTIONS                               #

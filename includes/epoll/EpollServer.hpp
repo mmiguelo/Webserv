@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <string>
+#include <map>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <fcntl.h>
@@ -9,6 +10,7 @@
 #include <cstring>
 #include <cerrno>
 #include <unistd.h>
+#include "../http/HttpParser.hpp"
 
 #define MAX_EVENTS 64
 

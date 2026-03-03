@@ -1,7 +1,10 @@
 #include "EpollServer.hpp"
 #include "HttpParser.hpp"
+#include "HttpResponse.hpp"
+#include "utils.hpp"
 
 EpollServer::EpollServer(const std::string &host, int port) : _listenFd(-1), _epollFd(-1), _port(port), _host(host) {}
+
 EpollServer::~EpollServer() {}
 
 void EpollServer::_createSocket()
@@ -97,26 +100,38 @@ void EpollServer::_handleClientData(int fd) {
     }
     buffer[bytesRead] = '\0';
 
+    // Build and send response using HttpResponse
     bool complete = parser.feed(buffer);
-    if (complete) {
-        std::cout << "\n=== Request Complete ===" << std::endl;
-        parser.getRequest().print(std::cout);
-    } else if (parser.getState() == PARSE_ERROR) {
+    HttpResponse response;
+    HttpRequest& request = parser.getRequest();
+    int statusCode = static_cast<int>(request.getErrorCode());
+
+    if (parser.getState() == PARSE_ERROR) {
         std::cout << "\n=== Parse Error ===" << std::endl;
         parser.getRequest().print(std::cout);
+        if (statusCode == STATUS_METHOD_NOT_ALLOWED)
+            response.buildError(405);
+        else
+            response.buildError(400);
     }
+    else if (complete) {
+        std::cout << "\n=== Request Complete ===" << std::endl;
+        parser.getRequest().print(std::cout);
+        if (statusCode >= 400) {
+            response.buildError(statusCode);
+        } else {
+            // TODO: This will be replaced by actual file serving / CGI output
+            std::string body = "Request received successfully.\nPath: " + request.getPath();
+            if (!request.getBody().empty())
+                body += "\nBody: " + request.getBody();
+            response.build(statusCode, body, "text/plain", request.getVersion());
+        }
+    }
+    else
+        return ;
 
-    // Make this more dynamic with custom variables on task 2
-    std::ostringstream oss;
-    HttpRequest request = parser.getRequest();
-    oss << request.getVersion() << " " << request.getErrorCode() << " OK\r\n"
-        << "Content-Type: text/plain\r\n"
-        << "Content-Length: " << "11" << "\r\n"
-        << "Connection: close\r\n"
-        << "\r\n"
-        << "Hello World";
-    std::string response = oss.str();
-    write(fd, response.c_str(), response.size());
+    std::string raw = response.serialize(request.getMethod());
+    write(fd, raw.c_str(), raw.size());
 }
 
 void EpollServer::run()
