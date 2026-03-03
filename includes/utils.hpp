@@ -20,6 +20,7 @@
 #include <vector>
 #include <sstream>
 
+#include <csignal>
 #include "http/HttpRequest.hpp"
 #include "http/HttpParser.hpp"
 
