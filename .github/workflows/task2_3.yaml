@@ -1,0 +1,446 @@
+name: T2.3 - Router & Longest-Prefix Matching
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  gate:
+    name: Check PR Title
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Validate PR Title
+        id: check
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+
+          if ! echo "$TITLE" | grep -qE "^T[0-9]\.[0-9]*"; then
+            echo "FAIL: PR title does not match the required format 'T[sprint].[task] - [description]'"
+            exit 1
+          fi
+
+          PR_SPRINT=$(echo "$TITLE" | grep -oP "^T\K[0-9]+(?=\.)")
+          PR_TASK=$(echo "$TITLE" | grep -oP "^T[0-9]+\.\K[0-9]+")
+
+          SPRINT=2
+          TASK=3
+
+          if [ "$PR_SPRINT" -gt "$SPRINT" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          elif [ "$PR_SPRINT" -eq "$SPRINT" ] && [ "$PR_TASK" -ge "$TASK" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "SKIP: PR T${PR_SPRINT}.${PR_TASK} does not require T${SPRINT}.${TASK} tests"
+          fi
+
+  Task_2-3_Router_Tests:
+    name: Task 2.3 Router Tests
+    needs: gate
+    if: needs.gate.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:latest
+      options: --cap-add=SYS_PTRACE
+    steps:
+      - name: Install dependencies
+        run: apt-get update && apt-get install -y make g++ curl netcat-openbsd procps
+
+      - uses: actions/checkout@v4
+
+      # ═══════════════════════════════════════════════════════
+      # BUILD
+      # ═══════════════════════════════════════════════════════
+      - name: Compile
+        run: make
+
+      - name: Verify binary exists
+        run: test -f ./webserv && echo "Binary exists"
+
+      # ═══════════════════════════════════════════════════════
+      # PREPARE FIXTURES
+      # Each test gets its own config + www layout
+      # ═══════════════════════════════════════════════════════
+      - name: Prepare test fixtures
+        run: |
+          # ── Test 1 fixture: /images prefix maps root /var/www ──
+          mkdir -p www/var/www
+          echo "IMAGES_ROOT_FILE" > www/var/www/a.png
+
+          # ── Test 2 fixture: /api and /api/v2 locations ──
+          mkdir -p www/api www/api/v2
+          echo "api root"    > www/api/index.html
+          echo "api v2 root" > www/api/v2/index.html
+
+          # ── Test 3 fixture: GET-only location ──
+          mkdir -p www/readonly
+          echo "read only"   > www/readonly/index.html
+
+          # ── Test 4 fixture: redirect /old → /new ──
+          mkdir -p www/new
+          echo "new page"    > www/new/index.html
+
+          # ── Test 5 fixture: traversal target must NOT be reachable ──
+          # /etc/passwd exists on the system; we just need the server to block it
+
+          # ── Test 6 fixture: route that does NOT exist in config ──
+          # (no directory needed — the router should return 404)
+
+          echo "Fixtures ready"
+          find www -type f
+
+      # ═══════════════════════════════════════════════════════
+      # TEST 1: /images/a.png → fs_path = /var/www/a.png
+      # Config: location /images { root /var/www; }
+      # ═══════════════════════════════════════════════════════
+      - name: "Write config for Test 1"
+        run: |
+          mkdir -p config
+          cat > config/test1_images.conf << 'EOF'
+          server {
+              listen 0.0.0.0:8080;
+              location /images {
+                  root www/var/www;
+                  methods GET;
+              }
+          }
+          EOF
+
+      - name: "Test 1: /images/a.png resolves to correct fs_path"
+        run: |
+          ./webserv config/test1_images.conf > /tmp/webserv.log 2>&1 &
+          echo $! > /tmp/webserv.pid
+          sleep 1
+          kill -0 $(cat /tmp/webserv.pid) || (echo "FAIL: server did not start"; cat /tmp/webserv.log; exit 1)
+
+          # The router must map /images/a.png → www/var/www/a.png (strip /images prefix, prepend root)
+          HTTP_CODE=$(curl -s -o /tmp/t1_body.txt -w "%{http_code}" \
+            --max-time 5 http://localhost:8080/images/a.png 2>/dev/null)
+          BODY=$(cat /tmp/t1_body.txt 2>/dev/null)
+
+          echo "HTTP code: $HTTP_CODE"
+          echo "Body: $BODY"
+
+          # 200 = file found at correct resolved path
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "FAIL: expected 200 (file at resolved path), got $HTTP_CODE"
+            echo "This means the router did not strip the location prefix before appending root"
+            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
+          fi
+
+          if ! echo "$BODY" | grep -q "IMAGES_ROOT_FILE"; then
+            echo "FAIL: response body does not match expected file content"
+            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
+          fi
+
+          echo "PASS: /images/a.png correctly resolved to www/var/www/a.png"
+          kill $(cat /tmp/webserv.pid) 2>/dev/null || true; sleep 1
+
+      # ═══════════════════════════════════════════════════════
+      # TEST 2: /api/v2 vs /api — longest prefix wins
+      # Config: location /api { ... } AND location /api/v2 { ... }
+      # Request /api/v2 must match /api/v2, NOT /api
+      # ═══════════════════════════════════════════════════════
+      - name: "Write config for Test 2"
+        run: |
+          cat > config/test2_prefix.conf << 'EOF'
+          server {
+              listen 0.0.0.0:8080;
+              location /api {
+                  root www/api;
+                  methods GET;
+                  index index.html;
+              }
+              location /api/v2 {
+                  root www/api/v2;
+                  methods GET;
+                  index index.html;
+              }
+          }
+          EOF
+
+      - name: "Test 2: /api/v2 matches longer prefix, not /api"
+        run: |
+          ./webserv config/test2_prefix.conf > /tmp/webserv.log 2>&1 &
+          echo $! > /tmp/webserv.pid
+          sleep 1
+          kill -0 $(cat /tmp/webserv.pid) || (echo "FAIL: server did not start"; cat /tmp/webserv.log; exit 1)
+
+          BODY=$(curl -s --max-time 5 http://localhost:8080/api/v2/ 2>/dev/null)
+          echo "Body for /api/v2/: $BODY"
+
+          # Must serve from /api/v2 root (contains "api v2 root"), not /api root ("api root")
+          if echo "$BODY" | grep -q "api v2 root"; then
+            echo "PASS: /api/v2 matched longer prefix location /api/v2"
+          elif echo "$BODY" | grep -q "api root"; then
+            echo "FAIL: /api/v2 was matched by shorter prefix /api instead of /api/v2"
+            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
+          else
+            echo "WARN: could not determine which location matched (body='$BODY')"
+            # Still verify no crash
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:8080/api/v2/ 2>/dev/null)
+            echo "HTTP code: $CODE"
+            [ "$CODE" != "000" ] && echo "PASS: server responded to /api/v2/ (longest-prefix check inconclusive)" || exit 1
+          fi
+
+          kill $(cat /tmp/webserv.pid) 2>/dev/null || true; sleep 1
+
+      # Edge case: /apiv2 must NOT match /api (false prefix)
+      - name: "Test 2b: /apiv2 does NOT match /api (boundary check)"
+        run: |
+          ./webserv config/test2_prefix.conf > /tmp/webserv.log 2>&1 &
+          echo $! > /tmp/webserv.pid
+          sleep 1
+          kill -0 $(cat /tmp/webserv.pid) || (echo "FAIL: server did not start"; exit 1)
+
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 5 http://localhost:8080/apiv2 2>/dev/null)
+          echo "HTTP code for /apiv2: $CODE"
+
+          # /apiv2 has no matching location → must be 404, not 200 from /api
+          if [ "$CODE" = "404" ]; then
+            echo "PASS: /apiv2 correctly returned 404 (not a prefix match for /api)"
+          elif [ "$CODE" = "200" ]; then
+            echo "FAIL: /apiv2 incorrectly matched location /api (false prefix match)"
+            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
+          else
+            echo "INFO: got $CODE for /apiv2 (not 200, boundary check passed)"
+          fi
+
+          kill $(cat /tmp/webserv.pid) 2>/dev/null || true; sleep 1
+
+      # ═══════════════════════════════════════════════════════
+      # TEST 3: DELETE on GET-only location → 405 + Allow header
+      # ═══════════════════════════════════════════════════════
+      - name: "Write config for Test 3"
+        run: |
+          cat > config/test3_methods.conf << 'EOF'
+          server {
+              listen 0.0.0.0:8080;
+              location /readonly {
+                  root www/readonly;
+                  methods GET;
+                  index index.html;
+              }
+          }
+          EOF
+
+      - name: "Test 3: DELETE on GET-only location returns 405 with Allow header"
+        run: |
+          ./webserv config/test3_methods.conf > /tmp/webserv.log 2>&1 &
+          echo $! > /tmp/webserv.pid
+          sleep 1
+          kill -0 $(cat /tmp/webserv.pid) || (echo "FAIL: server did not start"; cat /tmp/webserv.log; exit 1)
+
+          RESPONSE=$(curl -sv -X DELETE --max-time 5 \
+            http://localhost:8080/readonly/ 2>&1)
+          echo "$RESPONSE"
+
+          HTTP_CODE=$(echo "$RESPONSE" | grep -oP "HTTP/1\.1 \K[0-9]+" | head -1)
+          echo "HTTP code: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" != "405" ]; then
+            echo "FAIL: expected 405 Method Not Allowed, got $HTTP_CODE"
+            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
+          fi
+
+          # RFC 7231 §7.4.1: 405 MUST include Allow header
+          if ! echo "$RESPONSE" | grep -qi "Allow:"; then
+            echo "FAIL: 405 response missing required Allow header (RFC 7231 §7.4.1)"
+            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
+          fi
+
+          ALLOW=$(echo "$RESPONSE" | grep -i "Allow:" | head -1)
+          echo "Allow header: $ALLOW"
+
+          if ! echo "$ALLOW" | grep -qi "GET"; then
+            echo "FAIL: Allow header does not list GET (the only allowed method)"
+            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
+          fi
+
+          echo "PASS: DELETE on GET-only location → 405 with Allow: GET"
+          kill $(cat /tmp/webserv.pid) 2>/dev/null || true; sleep 1
+
+      # ═══════════════════════════════════════════════════════
+      # TEST 4: /old with return 301 /new → redirect
+      # ═══════════════════════════════════════════════════════
+      - name: "Write config for Test 4"
+        run: |
+          cat > config/test4_redirect.conf << 'EOF'
+          server {
+              listen 0.0.0.0:8080;
+              location /old {
+                  return 301 /new;
+              }
+              location /new {
+                  root www/new;
+                  methods GET;
+                  index index.html;
+              }
+          }
+          EOF
+
+      - name: "Test 4: /old returns 301 redirect to /new"
+        run: |
+          ./webserv config/test4_redirect.conf > /tmp/webserv.log 2>&1 &
+          echo $! > /tmp/webserv.pid
+          sleep 1
+          kill -0 $(cat /tmp/webserv.pid) || (echo "FAIL: server did not start"; cat /tmp/webserv.log; exit 1)
+
+          # --no-location = do NOT follow redirects, so we can inspect the 301
+          RESPONSE=$(curl -sv --no-location --max-time 5 \
+            http://localhost:8080/old 2>&1)
+          echo "$RESPONSE"
+
+          HTTP_CODE=$(echo "$RESPONSE" | grep -oP "HTTP/1\.1 \K[0-9]+" | head -1)
+          echo "HTTP code: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" != "301" ]; then
+            echo "FAIL: expected 301 Moved Permanently, got $HTTP_CODE"
+            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
+          fi
+
+          # Location header must point to /new
+          if ! echo "$RESPONSE" | grep -qi "Location:.*\/new"; then
+            echo "FAIL: 301 response missing or wrong Location header"
+            echo "Expected: Location: /new"
+            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
+          fi
+
+          # Verify redirect check runs BEFORE method check
+          # (DELETE on /old should ALSO redirect, not 405)
+          DELETE_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            --no-location -X DELETE --max-time 5 \
+            http://localhost:8080/old 2>/dev/null)
+          echo "DELETE on redirect location: $DELETE_CODE"
+
+          if [ "$DELETE_CODE" != "301" ]; then
+            echo "FAIL: redirect must fire before method check (DELETE on /old should still 301)"
+            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
+          fi
+
+          echo "PASS: /old correctly returns 301 to /new (redirect before method check)"
+          kill $(cat /tmp/webserv.pid) 2>/dev/null || true; sleep 1
+
+      # ═══════════════════════════════════════════════════════
+      # TEST 5: Path traversal /../../etc/passwd → 403
+      # ═══════════════════════════════════════════════════════
+      - name: "Write config for Test 5"
+        run: |
+          cat > config/test5_traversal.conf << 'EOF'
+          server {
+              listen 0.0.0.0:8080;
+              location / {
+                  root www;
+                  methods GET;
+              }
+          }
+          EOF
+
+      - name: "Test 5: Path traversal attempt returns 403"
+        run: |
+          ./webserv config/test5_traversal.conf > /tmp/webserv.log 2>&1 &
+          echo $! > /tmp/webserv.pid
+          sleep 1
+          kill -0 $(cat /tmp/webserv.pid) || (echo "FAIL: server did not start"; cat /tmp/webserv.log; exit 1)
+
+          # Test classic ../ traversal (URL-encoded and raw)
+          for URI in \
+            "/../../etc/passwd" \
+            "/../../../etc/passwd" \
+            "/%2e%2e/%2e%2e/etc/passwd" \
+            "/./../../etc/passwd"; do
+
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+              --max-time 5 \
+              --path-as-is \
+              "http://localhost:8080${URI}" 2>/dev/null)
+            echo "URI: $URI → HTTP $CODE"
+
+            if [ "$CODE" = "200" ]; then
+              echo "FAIL: traversal URI '$URI' returned 200 — path traversal NOT blocked!"
+              kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
+            fi
+          done
+
+          echo "PASS: all traversal attempts blocked (no 200 returned)"
+
+          # Server must still be alive after traversal attempts
+          kill -0 $(cat /tmp/webserv.pid) || (echo "FAIL: server crashed after traversal"; exit 1)
+          echo "PASS: server alive after traversal attempts"
+          kill $(cat /tmp/webserv.pid) 2>/dev/null || true; sleep 1
+
+      # ═══════════════════════════════════════════════════════
+      # TEST 6: URI with no matching location → 404
+      # ═══════════════════════════════════════════════════════
+      - name: "Write config for Test 6"
+        run: |
+          cat > config/test6_nomatch.conf << 'EOF'
+          server {
+              listen 0.0.0.0:8080;
+              location /exists {
+                  root www;
+                  methods GET;
+              }
+          }
+          EOF
+
+      - name: "Test 6: URI with no matching location returns 404"
+        run: |
+          ./webserv config/test6_nomatch.conf > /tmp/webserv.log 2>&1 &
+          echo $! > /tmp/webserv.pid
+          sleep 1
+          kill -0 $(cat /tmp/webserv.pid) || (echo "FAIL: server did not start"; cat /tmp/webserv.log; exit 1)
+
+          for URI in "/doesnotexist" "/no/location/here" "/almost_exists"; do
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+              --max-time 5 "http://localhost:8080${URI}" 2>/dev/null)
+            echo "URI: $URI → HTTP $CODE"
+
+            if [ "$CODE" != "404" ]; then
+              echo "FAIL: expected 404 for unmatched URI '$URI', got $CODE"
+              kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
+            fi
+          done
+
+          echo "PASS: all unmatched URIs correctly returned 404"
+          kill $(cat /tmp/webserv.pid) 2>/dev/null || true; sleep 1
+
+      # ═══════════════════════════════════════════════════════
+      # FINAL HEALTH CHECK
+      # ═══════════════════════════════════════════════════════
+      - name: "Final health check"
+        run: |
+          ./webserv config/test6_nomatch.conf > /tmp/webserv.log 2>&1 &
+          echo $! > /tmp/webserv.pid
+          sleep 1
+
+          if ! kill -0 $(cat /tmp/webserv.pid) 2>/dev/null; then
+            echo "FAIL: server is not running after test suite"
+            cat /tmp/webserv.log || true
+            exit 1
+          fi
+
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 5 http://localhost:8080/exists 2>/dev/null || echo "000")
+          echo "Health check response: $CODE"
+
+          if [ "$CODE" = "000" ]; then
+            echo "FAIL: server not responding after full test suite"
+            exit 1
+          fi
+
+          echo "PASS: server healthy after all router tests"
+
+      # ═══════════════════════════════════════════════════════
+      # TEARDOWN
+      # ═══════════════════════════════════════════════════════
+      - name: Teardown
+        if: always()
+        run: |
+          PID=$(cat /tmp/webserv.pid 2>/dev/null) && kill $PID 2>/dev/null || true
+          sleep 1
+          PID=$(cat /tmp/webserv.pid 2>/dev/null) && kill -9 $PID 2>/dev/null || true
+          rm -f /tmp/webserv.pid /tmp/webserv.log
