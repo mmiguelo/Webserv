@@ -148,7 +148,7 @@ jobs:
 
           DIFF=$((AFTER - BASELINE))
 
-          if [ "$DIFF" -gt 1 ], then
+          if [ "$DIFF" -gt 1 ]; then
             echo "FAIL: fd leak detected (baseline=$BASELINE, after=$AFTER, diff=$DIFF)"
             exit 1
           fi
@@ -273,7 +273,7 @@ jobs:
             exit 1
           fi
 
-          HTTP_CODE=$(curl -s -o /dev/null -w "{http_code}" \
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
             --max-time 5 http://localhost:8080/ 2>/dev/null || echo "000")
           echo "Final health check response: $HTTP_CODE"
 
@@ -291,5 +291,5 @@ jobs:
         run: |
           PID=$(cat /tmp/webserv.pid 2>/dev/null) && kill $PID 2>/dev/null || true
           sleep 1
-          PID=$(cat /tmp/webserv.pid 2>/dev/null) && kill -p $PID 2>/dev/null || true
+          PID=$(cat /tmp/webserv.pid 2>/dev/null) && kill -9 $PID 2>/dev/null || true
           rm -f /tmp/webserv.pid
