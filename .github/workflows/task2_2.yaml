@@ -130,7 +130,7 @@ jobs:
             --max-time 5 \
             http://localhost:8080/echo 2>/dev/null)
 
-          HTTP_CODE = $(echo "$RESPONSE" | tail -1)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -n -1)
 
           echo "HTTP CODE: $HTTP_CODE"
