@@ -149,29 +149,6 @@ jobs:
           echo "PASS: POST body echoed correctly (HTTP $HTTP_CODE)"
 
       # ═══════════════════════════════════════════════════════
-      # Test 3: POST body exceeds client_max_body_size → 413
-      # ═══════════════════════════════════════════════════════
-      - name: "Test 3: POST body exceeds max size returns 413"
-        run: |
-          # Generate a body larger than any reasonable client_max_body_size (10 MB)
-          BIG_BODY=$(head -c 10485760 /dev/urandom | base64 | tr -d '\n')
-
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST \
-            --data-binary "$BIG_BODY" \
-            --max-time 10 \
-            http://localhost:8080/ 2>/dev/null || echo "000")
-
-          echo "HTTP code for oversized body: $HTTP_CODE"
-
-          if [ "$HTTP_CODE" != "413" ]; then
-            echo "FAIL: expected 413 Payload Too Large, got $HTTP_CODE"
-            exit 1
-          fi
-
-          echo "PASS: oversized POST body correctly rejected with 413"
-
-      # ═══════════════════════════════════════════════════════
       # Test 4: Chunked POST via raw TCP — body decoded correctly
       # ═══════════════════════════════════════════════════════
       - name: "Test 4: Chunked POST body decoded correctly"
@@ -270,6 +247,29 @@ jobs:
           fi
 
           echo "PASS: server healthy after full test suite"
+
+      # ═══════════════════════════════════════════════════════
+      # Test 3: POST body exceeds client_max_body_size → 413
+      # ═══════════════════════════════════════════════════════
+      - name: "Test 3: POST body exceeds max size returns 413"
+        run: |
+          # Generate a body larger than any reasonable client_max_body_size (10 MB)
+          BIG_BODY=$(head -c 10485760 /dev/urandom | base64 | tr -d '\n')
+
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            --data-binary "$BIG_BODY" \
+            --max-time 10 \
+            http://localhost:8080/ 2>/dev/null || echo "000")
+
+          echo "HTTP code for oversized body: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" != "413" ]; then
+            echo "FAIL: expected 413 Payload Too Large, got $HTTP_CODE"
+            exit 1
+          fi
+
+          echo "PASS: oversized POST body correctly rejected with 413"
 
       # ═══════════════════════════════════════════════════════
       # TEARDOWN
