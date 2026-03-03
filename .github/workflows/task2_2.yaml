@@ -111,7 +111,7 @@ jobs:
             exit 1
           fi
 
-          if ! echo "$RESPONSE" | grep -qP "Date: \w{3}, \d{2} \w{3} \d{4} \d{2}:\d{2}\d{2} GMT"; then
+          if ! echo "$RESPONSE" | grep -qP "Date: \w{3}, \d{2} \w{3} \d{4} \d{2}:\d{2}:\d{2} GMT"; then
             echo "FAIL: Date header missing or wrong format (must be UTF RFC 7231)"
             exit 1
           fi
