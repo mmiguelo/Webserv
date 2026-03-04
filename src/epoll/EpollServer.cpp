@@ -145,11 +145,17 @@ void EpollServer::_handleClientData(int fd)
     std::string newData(buffer, bytesRead);
     bool complete = data.parser.feed(newData);
 
+    _createResponse(fd, complete, data);
+
+    // else: incomplete request, wait for more data
+}
+
+void EpollServer::_createResponse(int fd, bool complete, ClientData &data)
+{
     if (complete)
     {
         HttpRequest request = data.parser.getRequest();
 
-        // Serve file from www/ or fallback
         std::string path = request.getPath();
         if (path == "/")
             path = "/index.html";
@@ -222,7 +228,6 @@ void EpollServer::_handleClientData(int fd)
         ev.data.fd = fd;
         epoll_ctl(_epollFd, EPOLL_CTL_MOD, fd, &ev);
     }
-    // else: incomplete request, wait for more data
 }
 
 void EpollServer::_handleClientResponse(int fd)

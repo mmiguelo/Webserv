@@ -46,6 +46,7 @@ private:
     void _closeClient(int fd);
     void _handleClientResponse(int fd);
     void _checkTimeout();
+    void _createResponse(int fd, bool complete, ClientData &data);
 
 public:
     EpollServer(const std::string &host, int port);
