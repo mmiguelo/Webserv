@@ -298,9 +298,13 @@ jobs:
 
       - name: "Test 8: HEAD request — no body"
         run: |
-          BODY_BYTES=$(curl -s -X HEAD -o /tmp/head.bin \
-            --max-time 5 http://localhost:8080/ 2>/dev/null; \
-            wc -c < /tmp/head.bin)
+          curl -s -X HEAD -o /tmp/head.bin --max-time 5 http://localhost:8080/ 2>/dev/null
+          CURL_EXIT=$?
+          if [ $CURL_EXIT -ne 0 ]; then
+            echo "FAIL: curl exited with code $CURL_EXIT"
+            exit 1
+          fi
+          BODY_BYTES=$(wc -c < /tmp/head.bin)
           echo "HEAD body bytes: $BODY_BYTES"
           rm -f /tmp/head.bin
           if [ "$BODY_BYTES" -eq 0 ]; then
@@ -372,5 +376,4 @@ jobs:
         run: |
           PID=$(cat /tmp/webserv.pid 2>/dev/null) && kill $PID 2>/dev/null || true
           sleep 1
-          PID=$(cat /tmp/webserv.pid 2>/dev/null) && kill -9 $PID 2>/dev/null || true
-          rm -f /tmp/webserv.pid
+          PID=$(cat /tmp/webserv.pid 2
