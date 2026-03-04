@@ -1,27 +1,28 @@
 #include "EpollServer.hpp"
 #include "HttpParser.hpp"
+#include <fstream>
 
 EpollServer::EpollServer(const std::string &host, int port) : _listenFd(-1), _epollFd(-1), _port(port), _host(host) {}
 EpollServer::~EpollServer() {}
 
 void EpollServer::_createSocket()
 {
-    _listenFd = socket(AF_INET, SOCK_STREAM, 0); // Create a TCP listen socket. 0 is the default protocol.
+    _listenFd = socket(AF_INET, SOCK_STREAM, 0);
     if (_listenFd == -1)
         throw std::runtime_error("Error creating listen fd socket.");
 
     int opt = 1;
-    if (setsockopt(_listenFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) // set socket options. In this case, SOL_SOCKET is the generic level and SO_REUSEADDR tells the kernel to reuse the address even if it is waiting
-        throw std::runtime_error("Error ");
+    if (setsockopt(_listenFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1)
+        throw std::runtime_error("Error setting SO_REUSEADDR");
 }
 
 void EpollServer::_setNonBlocking(int fd)
 {
-    int flags = fcntl(fd, F_GETFL, 0); // get the binary flag for fd
+    int flags = fcntl(fd, F_GETFL, 0);
     if (flags == -1)
         throw std::runtime_error("fcntl getfl failed");
 
-    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) // set the flag to nonblocking
+    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1)
         throw std::runtime_error("fcntl setfl failed");
 }
 
@@ -30,14 +31,14 @@ void EpollServer::_bindAndListen()
     struct sockaddr_in addr;
     std::memset(&addr, 0, sizeof(addr));
 
-    addr.sin_family = AF_INET;                       // set the family to the same family of socket
-    addr.sin_port = htons(_port);                    // network byte order is big-endian, while many machines have little-endian. We need to transform the port to big-endian style
-    addr.sin_addr.s_addr = inet_addr(_host.c_str()); // convert address into binary number in network big-endian order
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(_port);
+    addr.sin_addr.s_addr = inet_addr(_host.c_str());
 
-    if (bind(_listenFd, (struct sockaddr *)&addr, sizeof(addr)) == -1) // associates socket to host + port
+    if (bind(_listenFd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
         throw std::runtime_error("bind failed");
 
-    if (listen(_listenFd, SOMAXCONN) == -1) // start listening connections
+    if (listen(_listenFd, SOMAXCONN) == -1)
         throw std::runtime_error("listen failed");
 }
 
@@ -47,8 +48,19 @@ void EpollServer::_registerToEpoll(int fd, uint32_t events)
     epoll_ev.events = events;
     epoll_ev.data.fd = fd;
 
-    if (epoll_ctl(_epollFd, EPOLL_CTL_ADD, fd, &epoll_ev) == -1) // add the new fd to the list
+    if (epoll_ctl(_epollFd, EPOLL_CTL_ADD, fd, &epoll_ev) == -1)
         throw std::runtime_error("epoll ctl failed");
+}
+
+void EpollServer::_closeClient(int fd)
+{
+    // Guard against double-close
+    if (_clients.count(fd) == 0)
+        return;
+    epoll_ctl(_epollFd, EPOLL_CTL_DEL, fd, NULL);
+    close(fd);
+    _clients.erase(fd);
+    std::cout << "Connection closed on fd " << fd << std::endl;
 }
 
 void EpollServer::_acceptNewClient()
@@ -58,7 +70,6 @@ void EpollServer::_acceptNewClient()
         struct sockaddr_in client_addr;
         socklen_t client_len = sizeof(client_addr);
 
-        // Creates new socket for this client, fills client_addr with client IP and port and returns the new fd
         int client_fd = accept(_listenFd, (struct sockaddr *)&client_addr, &client_len);
         if (client_fd == -1)
         {
@@ -116,6 +127,15 @@ void EpollServer::_handleClientData(int fd)
     ssize_t bytesRead = recv(fd, buffer, sizeof(buffer), 0);
     if (bytesRead <= 0)
     {
+        // Client disconnected — but drain send_buf first if we have a response
+        if (!data.send_buf.empty())
+        {
+            struct epoll_event ev;
+            ev.events = EPOLLOUT | EPOLLERR | EPOLLHUP;
+            ev.data.fd = fd;
+            epoll_ctl(_epollFd, EPOLL_CTL_MOD, fd, &ev);
+            return;
+        }
         _closeClient(fd);
         return;
     }
@@ -124,17 +144,55 @@ void EpollServer::_handleClientData(int fd)
 
     std::string newData(buffer, bytesRead);
     bool complete = data.parser.feed(newData);
+
     if (complete)
     {
         HttpRequest request = data.parser.getRequest();
-        std::string body = "Hello World";
+
+        // Serve file from www/ or fallback
+        std::string path = request.getPath();
+        if (path == "/")
+            path = "/index.html";
+
+        std::string body;
+        std::string contentType = "text/plain";
+
+        std::string filePath = "www" + path;
+        std::ifstream file(filePath.c_str(), std::ios::binary);
+        if (file.good())
+        {
+            std::ostringstream content;
+            content << file.rdbuf();
+            body = content.str();
+            file.close();
+
+            if (path.find(".bin") != std::string::npos)
+                contentType = "application/octet-stream";
+            else if (path.find(".html") != std::string::npos)
+                contentType = "text/html";
+            else if (path.find(".css") != std::string::npos)
+                contentType = "text/css";
+            else if (path.find(".js") != std::string::npos)
+                contentType = "application/javascript";
+        }
+        else
+        {
+            body = "Request received successfully.\nPath: " + request.getPath();
+            if (!request.getBody().empty())
+                body += "\nBody: " + request.getBody();
+        }
+
         std::ostringstream oss;
         oss << request.getVersion() << " " << request.getErrorCode() << " OK\r\n"
-            << "Content-Type: text/plain\r\n"
+            << "Content-Type: " << contentType << "\r\n"
             << "Content-Length: " << body.size() << "\r\n"
             << "Connection: close\r\n"
-            << "\r\n"
-            << body;
+            << "\r\n";
+
+        // HEAD must not include body bytes (RFC 7231)
+        if (request.getMethod() != METHOD_HEAD)
+            oss << body;
+
         data.send_buf = oss.str();
 
         struct epoll_event ev;
@@ -164,26 +222,29 @@ void EpollServer::_handleClientData(int fd)
         ev.data.fd = fd;
         epoll_ctl(_epollFd, EPOLL_CTL_MOD, fd, &ev);
     }
-}
-
-void EpollServer::_closeClient(int fd)
-{
-    epoll_ctl(_epollFd, EPOLL_CTL_DEL, fd, NULL);
-    close(fd);
-    _clients.erase(fd);
-    std::cout << "Connection closed on fd " << fd << std::endl;
+    // else: incomplete request, wait for more data
 }
 
 void EpollServer::_handleClientResponse(int fd)
 {
     ClientData &data = _clients[fd];
-    ssize_t responseSize = send(fd, data.send_buf.data(), data.send_buf.size(), 0);
-    if (responseSize <= 0)
+
+    if (data.send_buf.empty())
     {
         _closeClient(fd);
         return;
     }
-    data.send_buf.erase(0, responseSize);
+
+    ssize_t sent = send(fd, data.send_buf.data(), data.send_buf.size(), 0);
+    if (sent <= 0)
+    {
+        _closeClient(fd);
+        return;
+    }
+
+    data.send_buf.erase(0, sent);
+    data.last_activity = time(NULL);
+
     if (data.send_buf.empty())
         _closeClient(fd);
 }
@@ -212,7 +273,7 @@ void EpollServer::run()
             {
                 _acceptNewClient();
             }
-            else
+            else if (_clients.count(fd)) // guard: client may have been closed earlier in this loop
             {
                 if (ev & (EPOLLERR | EPOLLHUP))
                     _closeClient(fd);
