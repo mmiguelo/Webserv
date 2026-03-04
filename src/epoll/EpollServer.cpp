@@ -209,13 +209,10 @@ void EpollServer::_createResponse(int fd, bool complete, ClientData &data)
     else if (data.parser.getState() == PARSE_ERROR)
     {
         HttpRequest request = data.parser.getRequest();
-        std::string version = request.getVersion();
-        if (version.empty())
-            version = "HTTP/1.1";
 
         std::string body = "Bad Request";
         std::ostringstream oss;
-        oss << version << " 400 Bad Request\r\n"
+        oss << request.getVersion() << " " << request.getErrorCode() << " OK\r\n"
             << "Content-Type: text/plain\r\n"
             << "Content-Length: " << body.size() << "\r\n"
             << "Connection: close\r\n"
