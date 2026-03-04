@@ -333,13 +333,8 @@ jobs:
         run: |
           PID=$(cat /tmp/webserv.pid)
 
-          python3 -c "
-          import socket, time
-          s = socket.socket()
-          s.connect(('127.0.0.1', 8080))
-          s.send(b'GET / HTTP/1.1\r\nHost: localhost\r\n\r\n')
-          s.close()
-          "
+          # Send request and immediately close — nc -w 0 closes right after sending
+          printf "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n" | nc -w 0 127.0.0.1 8080 || true
 
           sleep 1
 
@@ -387,5 +382,4 @@ jobs:
         if: always()
         run: |
           PID=$(cat /tmp/webserv.pid 2>/dev/null) && kill $PID 2>/dev/null || true
-          sleep 1
-          PID=$(cat /tmp/webserv.pid 2
+          rm -f /tmp/webserv.pid
