@@ -5,10 +5,10 @@
 #include <vector>
 #include "config/Token.hpp"
 
-class Tokenizer {
-	private:
-	public:
-		static std::vector<Token> tokenize(const std::string& input);
+class Tokenizer
+{
+public:
+	static std::vector<Token> tokenize(const std::string &input);
 };
 
 #endif

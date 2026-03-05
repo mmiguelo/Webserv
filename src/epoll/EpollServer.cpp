@@ -71,8 +71,8 @@ void EpollServer::_acceptNewClient()
         _setNonBlocking(client_fd);
         _registerToEpoll(client_fd, EPOLLIN);
         std::cout << "New Client fd = " << client_fd << std::endl;
-        //close(client_fd);
-        //TODO: probably it needs to be passed information to HttpParser here
+        // close(client_fd);
+        // TODO: probably it needs to be passed information to HttpParser here
     }
 }
 
@@ -87,21 +87,26 @@ void EpollServer::init()
     utils::log_info("Server listening");
 }
 
-void EpollServer::_handleClientData(int fd) {
+void EpollServer::_handleClientData(int fd)
+{
     HttpParser parser;
     char buffer[10000];
 
     ssize_t bytesRead = read(fd, buffer, sizeof(buffer));
-    if (bytesRead <= 0) {
+    if (bytesRead <= 0)
+    {
         return;
     }
     buffer[bytesRead] = '\0';
 
     bool complete = parser.feed(buffer);
-    if (complete) {
+    if (complete)
+    {
         std::cout << "\n=== Request Complete ===" << std::endl;
         parser.getRequest().print(std::cout);
-    } else if (parser.getState() == PARSE_ERROR) {
+    }
+    else if (parser.getState() == PARSE_ERROR)
+    {
         std::cout << "\n=== Parse Error ===" << std::endl;
         parser.getRequest().print(std::cout);
     }
@@ -138,7 +143,8 @@ void EpollServer::run()
 
             if (fd == _listenFd)
                 _acceptNewClient();
-            else {
+            else
+            {
                 _handleClientData(fd);
                 close(fd);
             }

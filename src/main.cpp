@@ -7,8 +7,11 @@
 #include "Utils_config.hpp" // for debugPrintToken
 #include "ConfigParser.hpp"
 #include "configValidator.hpp"
+#include <chrono>
 
 void printServers(const std::vector<ServerConfig> &servers);
+
+std::map<int, ServerConfig> SERVERS;
 
 // test file
 
@@ -49,11 +52,11 @@ int main(int argc, char **argv)
         // 2️⃣ Parse
         std::cout << "\n=== PARSING ===\n";
         ConfigParser parser(tokens);
-        std::vector<ServerConfig> servers = parser.parse();
+        std::map<int, ServerConfig> servers = parser.parse(); // TODO: ALTERAR DE VETOR PARA MAP O QUE DEVOLVE. O INDICE EM QUE ADICIONA E IGUAL A PORTA
 
         // 3️⃣ Validate
         std::cout << "\n=== VALIDATING ===\n";
-        ConfigValidator::validate(servers);
+        ConfigValidator::validate(SERVERS);
         std::cout << "\n✅ Config parsed and validated successfully\n";
 
         // 4️⃣ Print parsed config for verification

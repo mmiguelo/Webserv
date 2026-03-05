@@ -23,6 +23,9 @@
 #include "http/HttpRequest.hpp"
 #include "http/HttpParser.hpp"
 #include "epoll/EpollServer.hpp"
+#include "ServerConfig.hpp"
+
+extern std::map<int, ServerConfig> SERVERS;
 
 /*=============================================================================#
 #                              UTILITY FUNCTIONS                               #
@@ -34,8 +37,8 @@ namespace utils
     void log_error(const std::string &message);
 }
 
-//http
-std::string         toLowerStr(const std::string& str);
-std::string         trimWhitespace(const std::string& str);
-HttpMethod          stringToMethod(const std::string& method);
-std::string         methodToString(HttpMethod method);
+// http
+std::string toLowerStr(const std::string &str);
+std::string trimWhitespace(const std::string &str);
+HttpMethod stringToMethod(const std::string &method);
+std::string methodToString(HttpMethod method);
