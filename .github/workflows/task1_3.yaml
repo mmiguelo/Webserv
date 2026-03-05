@@ -49,8 +49,8 @@ jobs:
 
       - name: Install test dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y make g++ strace netcat-openbsd curl procps
+          apt-get update
+          apt-get install -y make g++ strace netcat-openbsd curl procps
 
       # ═══════════════════════════════════════════════════════
       # BUILD
