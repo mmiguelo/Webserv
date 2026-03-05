@@ -44,6 +44,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ═══════════════════════════════════════════════════════
+      # BUILD
+      # ═══════════════════════════════════════════════════════
+      - name: Compile with strict flags
+        run: make
+
+      - name: Verify binary exists
+        run: test -f ./webserv && echo "Binary exists"
+
+
       - name: Server starts with valid config
         run: |
           ./webserv config/default.conf &
