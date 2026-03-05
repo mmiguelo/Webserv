@@ -3,14 +3,14 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include "config/Tokenizer.hpp"
-#include "config/Utils_config.hpp" // for debugPrintToken
-#include "config/ConfigParser.hpp"
-#include "config/configValidator.hpp"
+#include "Tokenizer.hpp"
+#include "Utils_config.hpp" // for debugPrintToken
+#include "ConfigParser.hpp"
+#include "configValidator.hpp"
 
-void printServers(const std::vector<ServerConfig>& servers);
+void printServers(const std::vector<ServerConfig> &servers);
 
-//test file
+// test file
 
 int main(int argc, char **argv)
 {
@@ -25,7 +25,6 @@ int main(int argc, char **argv)
                 std::cerr << "Failed to open file\n";
                 return 1;
             }
-
         }
         else
         {
@@ -60,7 +59,8 @@ int main(int argc, char **argv)
         // 4️⃣ Print parsed config for verification
         printServers(servers);
     }
-    catch (const std::exception& e) {
+    catch (const std::exception &e)
+    {
         std::cerr << "❌ ERROR: " << e.what() << std::endl;
     }
     EpollServer server("0.0.0.0", 8080);
@@ -82,7 +82,7 @@ src/config/parser/ConfigParserLocation.cpp \
 src/config/parser/ConfigParserLocationDirectives.cpp \
 -o test */
 
-/* 
+/*
 Tokenizer tokenizer;
 std::vector<Token> tokens = tokenizer.tokenize(configContent);
 
@@ -91,11 +91,11 @@ std::vector<ServerConfig> servers = parser.parse();
 
 ConfigValidator::validate(servers); */
 
-void printServers(const std::vector<ServerConfig>& servers)
+void printServers(const std::vector<ServerConfig> &servers)
 {
     for (size_t i = 0; i < servers.size(); i++)
     {
-        const ServerConfig& server = servers[i];
+        const ServerConfig &server = servers[i];
 
         std::cout << "\n===== SERVER " << i << " =====\n";
 
@@ -116,7 +116,7 @@ void printServers(const std::vector<ServerConfig>& servers)
         std::cout << "Client max body size: " << server.client_max_body_size << "\n";
 
         std::cout << "Error pages:\n";
-        for (std::map<int,std::string>::const_iterator it = server.error_page.begin();
+        for (std::map<int, std::string>::const_iterator it = server.error_page.begin();
              it != server.error_page.end();
              ++it)
         {
@@ -127,7 +127,7 @@ void printServers(const std::vector<ServerConfig>& servers)
 
         for (size_t j = 0; j < server.locations.size(); j++)
         {
-            const LocationConfig& loc = server.locations[j];
+            const LocationConfig &loc = server.locations[j];
 
             std::cout << "  --- Location " << j << " ---\n";
             std::cout << "  Path: " << loc.path << "\n";
@@ -141,7 +141,7 @@ void printServers(const std::vector<ServerConfig>& servers)
             std::cout << "\n";
 
             std::cout << "  CGI: ";
-            for (std::map<std::string,std::string>::const_iterator it = loc.cgi_ext.begin();
+            for (std::map<std::string, std::string>::const_iterator it = loc.cgi_ext.begin();
                  it != loc.cgi_ext.end();
                  ++it)
             {
@@ -155,5 +155,4 @@ void printServers(const std::vector<ServerConfig>& servers)
             }
         }
     }
-    
 }
