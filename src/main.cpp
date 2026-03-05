@@ -1,12 +1,5 @@
 #include "utils.hpp"
 
-/* int main() {
-    EpollServer server("0.0.0.0", 8080);
-    server.init();
-    server.run();
-    return 0;
-} */
-
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -70,6 +63,9 @@ int main(int argc, char **argv)
     catch (const std::exception& e) {
         std::cerr << "❌ ERROR: " << e.what() << std::endl;
     }
+    EpollServer server("0.0.0.0", 8080);
+    server.init();
+    server.run();
     return 0;
 }
 
@@ -159,4 +155,5 @@ void printServers(const std::vector<ServerConfig>& servers)
             }
         }
     }
+    
 }
