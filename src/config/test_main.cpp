@@ -8,7 +8,7 @@
 
 void printServers(const std::vector<ServerConfig>& servers);
 
-// just a test file to check if the tokenizer is working correctly
+//test file
 
 int main()
 {
@@ -121,7 +121,7 @@ void printServers(const std::vector<ServerConfig>& servers)
                 std::cout << loc.methods[k] << " ";
             std::cout << "\n";
 
-            std::cout << "  CGI:\n";
+            std::cout << "  CGI: ";
             for (std::map<std::string,std::string>::const_iterator it = loc.cgi_ext.begin();
                  it != loc.cgi_ext.end();
                  ++it)
