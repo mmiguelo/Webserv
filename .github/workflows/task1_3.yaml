@@ -44,8 +44,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: apt-get update && apt-get install -y make g++ strace netcat-openbsd curl procps
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make g++ strace netcat-openbsd curl procps
 
       # ═══════════════════════════════════════════════════════
       # BUILD
@@ -56,7 +58,6 @@ jobs:
       - name: Verify binary exists
         run: test -f ./webserv && echo "Binary exists"
 
-
       - name: Server starts with valid config
         run: |
           ./webserv config/default.conf &
@@ -64,7 +65,7 @@ jobs:
           sleep 1
           kill -0 $PID && echo "PASS: server running with valid config"
           kill $PID
-      
+
       - name: Create invalid config
         run: |
           mkdir -p config
@@ -80,7 +81,7 @@ jobs:
       - name: Missing port causes non-zero exit
         run: |
           ./webserv config/missing_port.conf && echo "FAIL: should have exited" && exit 1 || echo "PASS: exited with error"
-      
+
       - name: Create malformed config
         run: |
           mkdir -p config
@@ -97,7 +98,7 @@ jobs:
           grep -qiE "error|unknown|invalid|line" /tmp/err.out \
             && echo "PASS: error message contains diagnostic info" \
             || echo "WARN: error message may lack context"
-      
+
       - name: Create multi-server config
         run: |
           mkdir -p config www/site1 www/site2
@@ -138,11 +139,10 @@ jobs:
           echo "Port 8080: $CODE1 | Port 9090: $CODE2"
           test "$CODE1" != "000" && echo "PASS: port 8080 responds"
           test "$CODE2" != "000" && echo "PASS: port 9090 responds"
-      
+
       - name: Teardown 1
         if: always()
         run: kill $(cat /tmp/webserv.pid 2>/dev/null) 2>/dev/null || true
-      
 
       - name: No-arg invocation does not crash
         run: |
@@ -150,7 +150,7 @@ jobs:
           # Either it started (exit by timeout = 124) or printed usage (exit 1)
           # In any case it must not segfault (exit 139)
           test "$EXIT" != "139" && echo "PASS: no segfault without args"
-      
+
       - name: Create config with 1MB body limit
         run: |
           mkdir -p config www/upload
