@@ -44,6 +44,8 @@ void ConfigParser::parseCgiExt(LocationConfig& location)
 {
 	std::string extension = expectWord();
 	std::string interpreter = expectWord();
+	if (location.cgi_ext.count(extension) > 0)
+		throw parseError("Duplicate CGI extension: " + extension);
 	location.cgi_ext[extension] = interpreter;
 	expect(SEMICOLON);
 }

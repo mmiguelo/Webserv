@@ -38,6 +38,8 @@ class ConfigParser {
 		void expect(TokenType type); //verificamos se o token atual é do type esperado 
 		bool matchWord(const std::string& word); //verificamos se o token atual é uma palavra específica
 		std::string expectWord();
+		std::string tokenTypeToString(TokenType type) const; //função para converter o enum TokenType em string
+		std::string numberToString(size_t number);
 
 		//add runtime error
 		std::runtime_error parseError(const std::string& message) const; //função para lançar exceção com mensagem de erro

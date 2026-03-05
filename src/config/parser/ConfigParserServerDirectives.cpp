@@ -47,9 +47,9 @@ void ConfigParser::parseMethods(ServerConfig& serverBlock) {
 void ConfigParser::parseClientMaxBodySize(ServerConfig& serverBlock) {
 	std::string sizeStr = expectWord(); //vamos receber o valor como string, exemplo "5M"
 	size_t multiplier = 1;
-	if (!sizeStr.empty() && isalpha(sizeStr.back())) {
-		char unit = sizeStr.back();
-		sizeStr.pop_back();
+	if (!sizeStr.empty() && isalpha(sizeStr[sizeStr.size() - 1])) {
+		char unit = sizeStr[sizeStr.size() - 1];
+		sizeStr.erase(sizeStr.size() - 1);
 		switch (unit) {
 			case 'K':
 				multiplier *= 1024;
