@@ -52,15 +52,15 @@ int main()
 
 /* c++ -Wall -Wextra -Werror -std=c++98 \
 -I includes \
-main.cpp \
+src/config/test_main.cpp \
 src/config/Tokenizer.cpp \
 src/config/Utils_config.cpp \
 src/config/ConfigValidator.cpp \
 src/config/parser/ConfigParser.cpp \
 src/config/parser/ConfigParserServer.cpp \
+src/config/parser/ConfigParserServerDirectives.cpp \
 src/config/parser/ConfigParserLocation.cpp \
-src/config/parser/ConfigParserDirectives.cpp \
-src/config/parser/ConfigParserDirectives_2.cpp \
+src/config/parser/ConfigParserLocationDirectives.cpp \
 -o test */
 
 /* 
