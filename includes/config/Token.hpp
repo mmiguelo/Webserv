@@ -17,8 +17,8 @@ struct Token{
 
 	Token() : type(WORD), value(""), lineNum(0) {}
 
-	Token(TokenType type, const std::string& value, size_t lineNum)
-		: type(type), value(value), lineNum(lineNum) {} //parameterized constructor
+	Token(TokenType type_, const std::string& value_, size_t lineNum_)
+		: type(type_), value(value_), lineNum(lineNum_) {} //parameterized constructor
 };
 
 #endif
