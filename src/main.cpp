@@ -10,68 +10,9 @@
 
 void printServers(const std::map<int, ServerConfig> &servers);
 
-std::map<int, ServerConfig> SERVERS;
-
-// test file
-
 int main(int argc, char **argv)
 {
     std::map<int, ServerConfig> servers;
-
-    try
-    {
-        std::ifstream file;
-
-        if (argc != 2)
-            file.open("config/test.conf");
-        else
-            file.open(argv[1]);
-
-        if (!file.is_open())
-        {
-            std::cerr << "Failed to open file\n";
-            return 1;
-        }
-
-        std::stringstream buffer;
-        buffer << file.rdbuf();
-        std::string content = buffer.str();
-
-        std::vector<Token> tokens = Tokenizer::tokenize(content);
-
-        ConfigParser parser(tokens);
-        servers = parser.parse();
-
-        Validator::validate(servers);
-
-        std::cout << "Config parsed and validated successfully\n";
-
-        printServers(servers);
-    }
-    catch (const std::exception &e)
-    {
-        std::cerr << "ERROR: " << e.what() << std::endl;
-        return 1;
-    }
-
-    std::vector<EpollServer*> running;
-
-    for (std::map<int, ServerConfig>::const_iterator it = servers.begin();
-         it != servers.end(); ++it)
-    {
-        EpollServer *server = new EpollServer("0.0.0.0", it->first);
-        server->init();
-        running.push_back(server);
-    }
-
-    if (!running.empty())
-        running[0]->run();   // temporary: only one loop
-
-    return 0;
-}
-
-/* int main(int argc, char **argv)
-{
     try
     {
         std::ifstream file;
@@ -106,7 +47,7 @@ int main(int argc, char **argv)
         // 2️⃣ Parse
         std::cout << "\n=== PARSING ===\n";
         ConfigParser parser(tokens);
-        std::map<int, ServerConfig> servers = parser.parse();
+        servers = parser.parse();
 
         // 3️⃣ Validate
         std::cout << "\n=== VALIDATING ===\n";
@@ -142,29 +83,7 @@ for (it = servers.begin(); it != servers.end(); ++it)
     }
 }
 while (true) pause();
-} */
-
-/* c++ -Wall -Wextra -Werror -std=c++98 \
--I includes \
-src/config/test_main.cpp \
-src/config/Tokenizer.cpp \
-src/config/Utils_config.cpp \
-src/config/ConfigValidator.cpp \
-src/config/parser/ConfigParser.cpp \
-src/config/parser/ConfigParserServer.cpp \
-src/config/parser/ConfigParserServerDirectives.cpp \
-src/config/parser/ConfigParserLocation.cpp \
-src/config/parser/ConfigParserLocationDirectives.cpp \
--o test */
-
-/*
-Tokenizer tokenizer;
-std::vector<Token> tokens = tokenizer.tokenize(configContent);
-
-ConfigParser parser(tokens);
-std::vector<ServerConfig> servers = parser.parse();
-
-ConfigValidator::validate(servers); */
+}
 
 void printServers(const std::map<int, ServerConfig> &servers)
 {
