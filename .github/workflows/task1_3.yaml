@@ -110,16 +110,18 @@ jobs:
           cat > config/multi_server.conf << 'EOF'
           server {
               listen 0.0.0.0:8080;
+              root /www;
               location / {
-                  root www/site1;
+                  root /www/site1;
                   index index.html;
                   methods GET;
               }
           }
           server {
               listen 0.0.0.0:9090;
+              root /www;
               location / {
-                  root www/site2;
+                  root /www/site2;
                   index index.html;
                   methods GET;
               }
@@ -160,13 +162,14 @@ jobs:
           cat > config/bodysize.conf << 'EOF'
           server {
               listen 0.0.0.0:8080;
+              root /www;
               client_max_body_size 1M;
               location /upload {
                   methods POST;
-                  upload_dir www/upload;
+                  upload_dir /www/upload;
               }
               location / {
-                  root www;
+                  root /www;
                   methods GET;
               }
           }

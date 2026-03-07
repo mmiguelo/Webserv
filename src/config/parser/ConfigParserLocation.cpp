@@ -1,13 +1,14 @@
 #include "config/ConfigParser.hpp"
 #include "config/ServerConfig.hpp"
 #include "config/LocationConfig.hpp"
+#include "config/UtilsConfig.hpp"
 #include <stdexcept>
 
 void ConfigParser::parseLocation(ServerConfig& serverBlock)
 {
 	LocationConfig location;
 
-	location.path = expectWord();
+	location.path = normalizePath(expectWord());
 	expect(LBRACE);
 	while (!isEnd() && peek().type != RBRACE)
 	{
@@ -21,11 +22,13 @@ void ConfigParser::parseLocation(ServerConfig& serverBlock)
 			parseLocationMethods(location);
 		else if (matchWord("cgi_ext"))
 			parseCgiExt(location);
+		else if (matchWord("index"))
+			parseLocationIndex(location);
 		else if (matchWord("return"))
 			parseReturn(location);
 		else
 			throw parseError("Unexpected directive in location block");
 	}
 	expect(RBRACE);
-	serverBlock.locations.push_back(location);
+	serverBlock.addLocation(location);
 }

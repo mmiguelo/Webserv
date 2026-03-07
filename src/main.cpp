@@ -4,12 +4,11 @@
 #include <fstream>
 #include <sstream>
 #include "Tokenizer.hpp"
-#include "Utils_config.hpp" // for debugPrintToken
+#include "UtilsConfig.hpp" // for debugPrintToken
 #include "ConfigParser.hpp"
-#include "configValidator.hpp"
-#include <chrono>
+#include "Validator.hpp"
 
-void printServers(const std::vector<ServerConfig> &servers);
+void printServers(const std::map<int, ServerConfig> &servers);
 
 std::map<int, ServerConfig> SERVERS;
 
@@ -43,23 +42,23 @@ int main(int argc, char **argv)
         std::string content = buffer.str();
 
         // 1️⃣ Tokenize
-        Tokenizer tokenizer;
-        std::vector<Token> tokens = tokenizer.tokenize(content);
+        std::vector<Token> tokens = Tokenizer::tokenize(content);
         std::cout << "=== TOKENS ===\n";
-        for (size_t i = 0; i < tokens.size(); i++)
-            debugPrintToken(tokens[i]);
+        //for (size_t i = 0; i < tokens.size(); i++)
+        //    debugPrintToken(tokens[i]);
 
         // 2️⃣ Parse
         std::cout << "\n=== PARSING ===\n";
         ConfigParser parser(tokens);
-        std::map<int, ServerConfig> servers = parser.parse(); // TODO: ALTERAR DE VETOR PARA MAP O QUE DEVOLVE. O INDICE EM QUE ADICIONA E IGUAL A PORTA
+        std::map<int, ServerConfig> servers = parser.parse();
 
         // 3️⃣ Validate
         std::cout << "\n=== VALIDATING ===\n";
-        ConfigValidator::validate(SERVERS);
+        Validator::validate(servers);
+
         std::cout << "\n✅ Config parsed and validated successfully\n";
 
-        // 4️⃣ Print parsed config for verification
+        // 4️⃣ Print parsed config
         printServers(servers);
     }
     catch (const std::exception &e)
@@ -94,68 +93,94 @@ std::vector<ServerConfig> servers = parser.parse();
 
 ConfigValidator::validate(servers); */
 
-void printServers(const std::vector<ServerConfig> &servers)
+void printServers(const std::map<int, ServerConfig> &servers)
 {
-    for (size_t i = 0; i < servers.size(); i++)
+    for (std::map<int, ServerConfig>::const_iterator serverIt = servers.begin();
+         serverIt != servers.end();
+         ++serverIt)
     {
-        const ServerConfig &server = servers[i];
+        const ServerConfig &server = serverIt->second;
 
-        std::cout << "\n===== SERVER " << i << " =====\n";
+        std::cout << "\nserver {\n";
 
-        std::cout << "Host: " << server.host << "\n";
-        std::cout << "Port: " << server.port << "\n";
-        std::cout << "Root: " << server.root << "\n";
+        std::cout << "    listen " << server.getPort() << ";\n";
+        std::cout << "    root " << server.getRoot() << ";\n";
 
-        std::cout << "Server names: ";
-        for (size_t j = 0; j < server.server_name.size(); j++)
-            std::cout << server.server_name[j] << " ";
-        std::cout << "\n";
-
-        std::cout << "Methods: ";
-        for (size_t j = 0; j < server.methods.size(); j++)
-            std::cout << server.methods[j] << " ";
-        std::cout << "\n";
-
-        std::cout << "Client max body size: " << server.client_max_body_size << "\n";
-
-        std::cout << "Error pages:\n";
-        for (std::map<int, std::string>::const_iterator it = server.error_page.begin();
-             it != server.error_page.end();
-             ++it)
+        const std::vector<std::string> &names = server.getServerName();
+        if (!names.empty())
         {
-            std::cout << "  " << it->first << " -> " << it->second << "\n";
+            std::cout << "    server_name ";
+            for (size_t i = 0; i < names.size(); i++)
+                std::cout << names[i] << " ";
+            std::cout << ";\n";
         }
 
-        std::cout << "\nLocations:\n";
-
-        for (size_t j = 0; j < server.locations.size(); j++)
+        const std::vector<std::string> &methods = server.getMethods();
+        if (!methods.empty())
         {
-            const LocationConfig &loc = server.locations[j];
-
-            std::cout << "  --- Location " << j << " ---\n";
-            std::cout << "  Path: " << loc.path << "\n";
-            std::cout << "  Root: " << loc.root << "\n";
-            std::cout << "  Upload dir: " << loc.upload_dir << "\n";
-            std::cout << "  Autoindex: " << (loc.autoindex ? "on" : "off") << "\n";
-
-            std::cout << "  Methods: ";
-            for (size_t k = 0; k < loc.methods.size(); k++)
-                std::cout << loc.methods[k] << " ";
-            std::cout << "\n";
-
-            std::cout << "  CGI: ";
-            for (std::map<std::string, std::string>::const_iterator it = loc.cgi_ext.begin();
-                 it != loc.cgi_ext.end();
-                 ++it)
-            {
-                std::cout << "    " << it->first << " -> " << it->second << "\n";
-            }
-
-            if (loc.return_code != 0)
-            {
-                std::cout << "  Return: " << loc.return_code
-                          << " -> " << loc.return_url << "\n";
-            }
+            std::cout << "    methods ";
+            for (size_t i = 0; i < methods.size(); i++)
+                std::cout << methods[i] << " ";
+            std::cout << ";\n";
         }
+
+        std::cout << "    client_max_body_size "
+                  << server.getClientMaxBodySize() << ";\n";
+
+        const std::map<int, std::string> &errorPages = server.getErrorPage();
+        for (std::map<int, std::string>::const_iterator errorIt = errorPages.begin();
+             errorIt != errorPages.end();
+             ++errorIt)
+        {
+            std::cout << "    error_page "
+                      << errorIt->first << " "
+                      << errorIt->second << ";\n";
+        }
+
+        const std::vector<LocationConfig> &locations = server.getLocations();
+
+        for (size_t i = 0; i < locations.size(); i++)
+        {
+            const LocationConfig &loc = locations[i];
+
+            std::cout << "\n    location " << loc.path << " {\n";
+
+            if (!loc.root.empty())
+                std::cout << "        root " << loc.root << ";\n";
+
+            if (!loc.upload_dir.empty())
+                std::cout << "        upload_dir " << loc.upload_dir << ";\n";
+
+            std::cout << "        autoindex "
+                      << (loc.autoindex ? "on" : "off") << ";\n";
+
+            if (!loc.methods.empty())
+            {
+                std::cout << "        methods ";
+                for (size_t j = 0; j < loc.methods.size(); j++)
+                    std::cout << loc.methods[j] << " ";
+                std::cout << ";\n";
+            }
+
+            for (std::map<std::string, std::string>::const_iterator cgiIt = loc.cgi_ext.begin();
+                 cgiIt != loc.cgi_ext.end();
+                 ++cgiIt)
+            {
+                std::cout << "        cgi "
+                          << cgiIt->first << " "
+                          << cgiIt->second << ";\n";
+            }
+
+            if (loc.redirect_code != 0)
+            {
+                std::cout << "        return "
+                          << loc.redirect_code << " "
+                          << loc.redirect_url << ";\n";
+            }
+
+            std::cout << "    }\n";
+        }
+
+        std::cout << "}\n";
     }
 }

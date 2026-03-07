@@ -52,12 +52,25 @@ void ConfigParser::parseCgiExt(LocationConfig& location)
 
 void ConfigParser::parseReturn(LocationConfig& location)
 {
+	//return 301 http://example.com/;
+	//or like this: return 404;
+
 	std::string codeStr = expectWord();
 	int code = std::atoi(codeStr.c_str());
 	if (code < 100 || code > 599)
 		throw parseError("Invalid return code: " + codeStr);
-	location.return_code = code;
+	location.redirect_code = code;
+	location.has_redirect = true;
 	if (!isEnd() && peek().type == WORD)
-		location.return_url = expectWord();
+		location.redirect_url = expectWord();
+	expect(SEMICOLON);
+}
+
+void ConfigParser::parseLocationIndex(LocationConfig& location)
+{
+	location.index.push_back(expectWord());
+	while (!isEnd() && peek().type == WORD)
+		location.index.push_back(expectWord());
+
 	expect(SEMICOLON);
 }

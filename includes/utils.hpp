@@ -25,8 +25,6 @@
 #include "epoll/EpollServer.hpp"
 #include "ServerConfig.hpp"
 
-extern std::map<int, ServerConfig> SERVERS;
-
 /*=============================================================================#
 #                              UTILITY FUNCTIONS                               #
 #=============================================================================*/

@@ -1,4 +1,5 @@
 #include "config/ConfigParser.hpp"
+#include "config/UtilsConfig.hpp"
 #include <iostream>
 #include <stdexcept>
 #include <cctype>
@@ -15,39 +16,56 @@ std::string ConfigParser::expectWord() {
 //Server Directives
 
 void ConfigParser::parseListen(ServerConfig& serverBlock) {
-	std::string port = expectWord(); //avancamos do token "listen" para o valor da porta
+	std::string value = expectWord(); //avancamos do token "listen" para o valor da porta
+	
+	std::string host = "0.0.0.0";
+	std::string port;
+	size_t dividerPos = value.find(':');
+	if (dividerPos != std::string::npos) {
+		host = value.substr(0, dividerPos);
+		port = value.substr(dividerPos + 1);
+
+		if (host.empty())
+			host = "0.0.0.0";
+	}
+	else
+		port = value;
+	
+	if (!isNumber(port))
+        throw parseError("Invalid port number: " + port);
 	int portNum = std::atoi(port.c_str()); //convertemos a string para int
-	if (portNum <= 0 || portNum > 65535)
-		throw parseError("Invalid port number: " + port);
-	serverBlock.port = portNum; //atribuimos o valor da porta ao serverBlock
+	serverBlock.setHost(host); //atribuimos o valor do host ao serverBlock
+	serverBlock.setPort(portNum); //atribuimos o valor da porta ao serverBlock
 	expect(SEMICOLON); //verificamos se o próximo token é um ponto e vírgula
 }
 
 void ConfigParser::parseRoot(ServerConfig& serverBlock) {
-	serverBlock.root = expectWord(); //avancamos do token "root" para o valor do root e atribuímos ao serverBlock
+	serverBlock.setRoot(expectWord()); //avancamos do token "root" para o valor do root e atribuímos ao serverBlock
 	expect(SEMICOLON);
 }
 
 void ConfigParser::parseServerName(ServerConfig& serverBlock){
 	//o server name e um std::vector<std::string>, então podemos ter múltiplos nomes de servidor
-	serverBlock.server_name.push_back(expectWord()); //expectWord() ja verifica contra erros e avança para o próximo token. Entao e seguro adicionar
+	serverBlock.addServerName(expectWord()); //expectWord() ja verifica contra erros e avança para o próximo token. Entao e seguro adicionar
 	while (!isEnd() && peek().type == WORD) //enquanto o próximo token for uma palavra. Seguimos
-		serverBlock.server_name.push_back(expectWord());
+		serverBlock.addServerName(expectWord());
 	expect(SEMICOLON);
 }
 
 void ConfigParser::parseMethods(ServerConfig& serverBlock) {
-	//o methods e um std::vector<std::string>, ent a funcao sera semelhante
-	serverBlock.methods.push_back(expectWord());
-	while (!isEnd() && peek().type == WORD)
-		serverBlock.methods.push_back(expectWord());
+	std::string method = expectWord();
+	serverBlock.addMethod(method);
+	while (!isEnd() && peek().type == WORD) {
+		method = expectWord();
+		serverBlock.addMethod(method);
+	}
 	expect(SEMICOLON);
 }
 
 void ConfigParser::parseClientMaxBodySize(ServerConfig& serverBlock) {
 	std::string sizeStr = expectWord(); //vamos receber o valor como string, exemplo "5M"
 	size_t multiplier = 1;
-	if (!sizeStr.empty() && isalpha(sizeStr[sizeStr.size() - 1])) {
+	if (!sizeStr.empty() && std::isalpha(sizeStr[sizeStr.size() - 1])) {
 		char unit = sizeStr[sizeStr.size() - 1];
 		sizeStr.erase(sizeStr.size() - 1);
 		switch (unit) {
@@ -69,7 +87,7 @@ void ConfigParser::parseClientMaxBodySize(ServerConfig& serverBlock) {
 	size_t sizeValue = std::atoi(sizeStr.c_str());
 	if (sizeValue <= 0)
 		throw parseError("Invalid size value: " + sizeStr);
-	serverBlock.client_max_body_size = sizeValue * multiplier; //atribuimos o valor ao serverBlock
+	serverBlock.setClientMaxBodySize(sizeValue * multiplier); //atribuimos o valor ao serverBlock
 	expect(SEMICOLON);
 }
 
@@ -78,9 +96,8 @@ void ConfigParser::parseErrorPage(ServerConfig& serverBlock) {
 	int code = std::atoi(codeStr.c_str());
 	if (code < 100 || code > 599)
 		throw parseError("Invalid error code: " + codeStr);
+
 	std::string path = expectWord(); //depois recebemos o path
-	serverBlock.error_page[code] = path; //atribuimos o código e o path ao map de error_page
-	if (serverBlock.error_page.count(code) > 1)
-		throw parseError("Duplicate error code: " + codeStr);
+	serverBlock.addErrorPage(code, path); //atribuimos o código e o path ao map de error_page
 	expect(SEMICOLON);
 }

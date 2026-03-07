@@ -43,9 +43,12 @@ FILE_PARSE += ConfigParserLocationDirectives.cpp
 FILE_PARSE += ConfigParserServer.cpp
 FILE_PARSE += ConfigParserServerDirectives.cpp
 
-FILE_CONFIG	= ConfigValidator.cpp
+FILE_CONFIG	= Validator.cpp
+FILE_CONFIG	+= ValidatorUtils.cpp
+FILE_CONFIG += ValidatorUtils2.cpp
 FILE_CONFIG	+= Tokenizer.cpp
 FILE_CONFIG	+= UtilsConfig.cpp
+FILE_CONFIG += ServerConfig.cpp
 
 SRC	=	$(GENERAL)
 SRC	+=	$(HTTP)
