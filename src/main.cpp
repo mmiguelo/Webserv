@@ -16,6 +16,62 @@ std::map<int, ServerConfig> SERVERS;
 
 int main(int argc, char **argv)
 {
+    std::map<int, ServerConfig> servers;
+
+    try
+    {
+        std::ifstream file;
+
+        if (argc != 2)
+            file.open("config/test.conf");
+        else
+            file.open(argv[1]);
+
+        if (!file.is_open())
+        {
+            std::cerr << "Failed to open file\n";
+            return 1;
+        }
+
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        std::string content = buffer.str();
+
+        std::vector<Token> tokens = Tokenizer::tokenize(content);
+
+        ConfigParser parser(tokens);
+        servers = parser.parse();
+
+        Validator::validate(servers);
+
+        std::cout << "Config parsed and validated successfully\n";
+
+        printServers(servers);
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "ERROR: " << e.what() << std::endl;
+        return 1;
+    }
+
+    std::vector<EpollServer*> running;
+
+    for (std::map<int, ServerConfig>::const_iterator it = servers.begin();
+         it != servers.end(); ++it)
+    {
+        EpollServer *server = new EpollServer("0.0.0.0", it->first);
+        server->init();
+        running.push_back(server);
+    }
+
+    if (!running.empty())
+        running[0]->run();   // temporary: only one loop
+
+    return 0;
+}
+
+/* int main(int argc, char **argv)
+{
     try
     {
         std::ifstream file;
@@ -66,11 +122,27 @@ int main(int argc, char **argv)
         std::cerr << "❌ ERROR: " << e.what() << std::endl;
         return 1;
     }
-    EpollServer server("0.0.0.0", 8080);
+    // EpollServer server("0.0.0.0", 8080);
+    // server.init();
+    // server.run();
+    // return 0;
+
+    std::map<int, ServerConfig>::const_iterator it;
+for (it = servers.begin(); it != servers.end(); ++it)
+{
+    int port = it->first;
+
+    EpollServer server("0.0.0.0", port);
     server.init();
-    server.run();
-    return 0;
+
+    if (fork() == 0)  // child process handles this port
+    {
+        server.run();
+        exit(0);
+    }
 }
+while (true) pause();
+} */
 
 /* c++ -Wall -Wextra -Werror -std=c++98 \
 -I includes \
