@@ -64,6 +64,7 @@ int main(int argc, char **argv)
     catch (const std::exception &e)
     {
         std::cerr << "❌ ERROR: " << e.what() << std::endl;
+        return 1;
     }
     EpollServer server("0.0.0.0", 8080);
     server.init();
