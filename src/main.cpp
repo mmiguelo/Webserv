@@ -38,22 +38,13 @@ int main(int argc, char **argv)
         buffer << file.rdbuf();
         std::string content = buffer.str();
 
-        // 1️⃣ Tokenize
         std::vector<Token> tokens = Tokenizer::tokenize(content);
-        std::cout << "=== TOKENS ===\n";
         //for (size_t i = 0; i < tokens.size(); i++)
         //    debugPrintToken(tokens[i]);
-
-        // 2️⃣ Parse
-        std::cout << "\n=== PARSING ===\n";
         ConfigParser parser(tokens);
         servers = parser.parse();
-
-        // 3️⃣ Validate
-        std::cout << "\n=== VALIDATING ===\n";
         Validator::validate(servers);
-
-        std::cout << "\n✅ Config parsed and validated successfully\n";
+        std::cout << "\nConfig parsed and validated successfully\n";
 
         // 4️⃣ Print parsed config
         printServers(servers);
