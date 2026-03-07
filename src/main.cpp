@@ -57,32 +57,18 @@ int main(int argc, char **argv)
 
         // 4️⃣ Print parsed config
         printServers(servers);
+
+        EpollServer server;
+        std::map<int, ServerConfig>::iterator it;
+        for (it = servers.begin(); it != servers.end(); ++it)
+            server.addServer(it->second);
+        server.run();
     }
     catch (const std::exception &e)
     {
         std::cerr << "❌ ERROR: " << e.what() << std::endl;
         return 1;
     }
-    // EpollServer server("0.0.0.0", 8080);
-    // server.init();
-    // server.run();
-    // return 0;
-
-    std::map<int, ServerConfig>::const_iterator it;
-for (it = servers.begin(); it != servers.end(); ++it)
-{
-    int port = it->first;
-
-    EpollServer server("0.0.0.0", port);
-    server.init();
-
-    if (fork() == 0)  // child process handles this port
-    {
-        server.run();
-        exit(0);
-    }
-}
-while (true) pause();
 }
 
 void printServers(const std::map<int, ServerConfig> &servers)

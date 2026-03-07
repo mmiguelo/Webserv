@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <string>
+#include <set>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <fcntl.h>
@@ -9,30 +10,29 @@
 #include <cstring>
 #include <cerrno>
 #include <unistd.h>
+#include "ServerConfig.hpp"
 
 #define MAX_EVENTS 64
 
 class EpollServer
 {
 private:
-    int _listenFd;
     int _epollFd;
-    int _port;
-    std::string _host;
+    std::set<int> _listenFds;
+    std::map<int, ServerConfig*> _fdToConfig;
 
     struct epoll_event _events[MAX_EVENTS];
 
-    void _createSocket();
+    int _createAndBindSocket(const std::string &host, int port);
     void _setNonBlocking(int fd);
-    void _bindAndListen();
     void _registerToEpoll(int fd, uint32_t events);
-    void _acceptNewClient();
+    void _acceptNewClient(int listenFd);
     void _handleClientData(int fd);
 
 public:
-    EpollServer(const std::string &host, int port);
+    EpollServer();
     ~EpollServer();
 
-    void init();
+    void addServer(ServerConfig &config);
     void run();
 };
