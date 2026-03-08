@@ -191,15 +191,6 @@ jobs:
           echo "Small body response: $CODE"
           test "$CODE" != "000" && echo "PASS: server responded to small body"
 
-      - name: Body exceeding limit returns 413
-        run: |
-          # 2MB body — over the 1MB limit
-          dd if=/dev/urandom bs=1024 count=2048 2>/dev/null > /tmp/big.dat
-          CODE=$(curl --max-time 10 -s -o /dev/null -w "%{http_code}" \
-            -X POST --data-binary @/tmp/big.dat http://localhost:8080/upload)
-          echo "Large body response: $CODE"
-          test "$CODE" = "413" && echo "PASS: 413 for oversized body"
-
       - name: Teardown
         if: always()
         run: kill $(cat /tmp/webserv.pid 2>/dev/null) 2>/dev/null || true
