@@ -12,11 +12,12 @@
 #include <unistd.h>
 #include <set>
 #include <map>
-#include "HttpParser.hpp"
 #include "ServerConfig.hpp"
 
 #define MAX_EVENTS 64
 #define MAX_TIMEOUT 10
+
+class HttpParser;
 
 struct ClientData
 {
