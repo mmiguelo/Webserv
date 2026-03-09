@@ -208,6 +208,8 @@ bool HttpParser::_parseHeaders()
         std::string value = line.substr(colon + 1);
         _request.setHeader(key, value); // it trims WS in this function
     }
+
+    std::map<int, ServerConfig> servers;
 }
 
 bool HttpParser::_parseBodyContentLength()

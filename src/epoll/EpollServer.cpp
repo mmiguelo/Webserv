@@ -2,18 +2,19 @@
 #include "HttpParser.hpp"
 #include <fstream>
 
-EpollServer::EpollServer(const std::string &host, int port) : _listenFd(-1), _epollFd(-1), _port(port), _host(host) {}
-EpollServer::~EpollServer() {}
-
-void EpollServer::_createSocket()
+EpollServer::EpollServer() : _epollFd(-1)
 {
-    _listenFd = socket(AF_INET, SOCK_STREAM, 0);
-    if (_listenFd == -1)
-        throw std::runtime_error("Error creating listen fd socket.");
+    _epollFd = epoll_create1(0);
+    if (_epollFd == -1)
+        throw std::runtime_error("epoll_create1 failed");
+}
 
-    int opt = 1;
-    if (setsockopt(_listenFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1)
-        throw std::runtime_error("Error setting SO_REUSEADDR");
+EpollServer::~EpollServer()
+{
+    for (std::set<int>::iterator it = _listenFds.begin(); it != _listenFds.end(); ++it)
+        close(*it);
+    if (_epollFd != -1)
+        close(_epollFd);
 }
 
 void EpollServer::_setNonBlocking(int fd)
@@ -26,22 +27,6 @@ void EpollServer::_setNonBlocking(int fd)
         throw std::runtime_error("fcntl setfl failed");
 }
 
-void EpollServer::_bindAndListen()
-{
-    struct sockaddr_in addr;
-    std::memset(&addr, 0, sizeof(addr));
-
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(_port);
-    addr.sin_addr.s_addr = inet_addr(_host.c_str());
-
-    if (bind(_listenFd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
-        throw std::runtime_error("bind failed");
-
-    if (listen(_listenFd, SOMAXCONN) == -1)
-        throw std::runtime_error("listen failed");
-}
-
 void EpollServer::_registerToEpoll(int fd, uint32_t events)
 {
     struct epoll_event epoll_ev;
@@ -52,25 +37,58 @@ void EpollServer::_registerToEpoll(int fd, uint32_t events)
         throw std::runtime_error("epoll ctl failed");
 }
 
-void EpollServer::_closeClient(int fd)
+int EpollServer::_createAndBindSocket(const std::string &host, int port)
 {
-    // Guard against double-close
-    if (_clients.count(fd) == 0)
-        return;
-    epoll_ctl(_epollFd, EPOLL_CTL_DEL, fd, NULL);
-    close(fd);
-    _clients.erase(fd);
-    std::cout << "Connection closed on fd " << fd << std::endl;
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd == -1)
+        throw std::runtime_error("socket() failed");
+
+    int opt = 1;
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1)
+    {
+        close(fd);
+        throw std::runtime_error("setsockopt failed");
+    }
+
+    struct sockaddr_in addr;
+    std::memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = inet_addr(host.c_str());
+
+    if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
+    {
+        close(fd);
+        throw std::runtime_error("bind failed");
+    }
+    if (listen(fd, SOMAXCONN) == -1)
+    {
+        close(fd);
+        throw std::runtime_error("listen failed");
+    }
+    return fd;
 }
 
-void EpollServer::_acceptNewClient()
+void EpollServer::addServer(ServerConfig &config)
+{
+    int fd = _createAndBindSocket(config.getHost(), config.getPort());
+    _setNonBlocking(fd);
+    _registerToEpoll(fd, EPOLLIN);
+    _listenFds.insert(fd);
+    _fdToConfig[fd] = &config;
+
+    std::ostringstream oss;
+    oss << config.getPort();
+    utils::log_info("Listening on " + config.getHost() + ":" + oss.str());
+}
+
+void EpollServer::_acceptNewClient(int listenFd)
 {
     while (true)
     {
         struct sockaddr_in client_addr;
         socklen_t client_len = sizeof(client_addr);
-
-        int client_fd = accept(_listenFd, (struct sockaddr *)&client_addr, &client_len);
+        int client_fd = accept(listenFd, (struct sockaddr *)&client_addr, &client_len);
         if (client_fd == -1)
         {
             if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -78,12 +96,11 @@ void EpollServer::_acceptNewClient()
             utils::log_error("accept() failed");
             break;
         }
-
         _setNonBlocking(client_fd);
         _registerToEpoll(client_fd, EPOLLIN | EPOLLERR | EPOLLHUP);
         ClientData data;
         data.last_activity = time(NULL);
-        data.server_fd = _listenFd;
+        data.server_fd = listenFd;
         _clients[client_fd] = data;
         std::cout << "New Client fd = " << client_fd << std::endl;
     }
@@ -105,18 +122,6 @@ void EpollServer::_checkTimeout()
         utils::log_info("Client timed out, closing fd");
         _closeClient(fdTimeout[i]);
     }
-}
-
-void EpollServer::init()
-{
-    _epollFd = epoll_create1(0);
-    _createSocket();
-    _setNonBlocking(_listenFd);
-    _bindAndListen();
-    _registerToEpoll(_listenFd, EPOLLIN);
-    _listenSet.insert(_listenFd);
-
-    utils::log_info("Server listening");
 }
 
 void EpollServer::_handleClientData(int fd)
@@ -146,8 +151,6 @@ void EpollServer::_handleClientData(int fd)
     bool complete = data.parser.feed(newData);
 
     _createResponse(fd, complete, data);
-
-    // else: incomplete request, wait for more data
 }
 
 void EpollServer::_createResponse(int fd, bool complete, ClientData &data)
@@ -195,7 +198,6 @@ void EpollServer::_createResponse(int fd, bool complete, ClientData &data)
             << "Connection: close\r\n"
             << "\r\n";
 
-        // HEAD must not include body bytes (RFC 7231)
         if (request.getMethod() != METHOD_HEAD)
             oss << body;
 
@@ -261,7 +263,7 @@ void EpollServer::run()
         {
             if (errno == EINTR)
                 continue;
-            throw std::runtime_error("epoll did not waited");
+            throw std::runtime_error("epoll_wait failed");
         }
 
         _checkTimeout();
@@ -271,11 +273,11 @@ void EpollServer::run()
             int fd = _events[i].data.fd;
             uint32_t ev = _events[i].events;
 
-            if (_listenSet.count(fd))
+            if (_listenFds.count(fd))
             {
-                _acceptNewClient();
+                _acceptNewClient(fd);
             }
-            else if (_clients.count(fd)) // guard: client may have been closed earlier in this loop
+            else if (_clients.count(fd))
             {
                 if (ev & (EPOLLERR | EPOLLHUP))
                     _closeClient(fd);

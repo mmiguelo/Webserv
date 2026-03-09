@@ -1,0 +1,25 @@
+#ifndef LOCATIONCONFIG_HPP
+#define LOCATIONCONFIG_HPP
+
+#include <string>
+#include <vector>
+#include <map>
+
+struct LocationConfig {
+	std::string path;									//obrigatorio
+	std::string root;									//opcional
+	std::vector<std::string> index; 					//opcional
+	std::string upload_dir;								//opcional
+
+	bool autoindex;										//opcional
+	std::vector<std::string> methods;					//opcional
+	std::map<std::string, std::string> cgi_ext;			//opcional
+	
+	std::string redirect_url;							//opcional
+	int redirect_code;									//default 0
+	bool has_redirect;
+
+	LocationConfig() : autoindex(false), redirect_code(0), has_redirect(false) {} //os outros campos iniciam-se vazios por defualt
+};
+
+#endif

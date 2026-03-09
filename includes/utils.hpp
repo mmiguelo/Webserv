@@ -23,6 +23,8 @@
 #include <csignal>
 #include "http/HttpRequest.hpp"
 #include "http/HttpParser.hpp"
+#include "epoll/EpollServer.hpp"
+#include "ServerConfig.hpp"
 
 /*=============================================================================#
 #                              UTILITY FUNCTIONS                               #
