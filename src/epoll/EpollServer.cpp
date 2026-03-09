@@ -1,18 +1,18 @@
 #include "EpollServer.hpp"
 #include "HttpParser.hpp"
 
-EpollServer::EpollServer(const std::string &host, int port) : _listenFd(-1), _epollFd(-1), _port(port), _host(host) {}
-EpollServer::~EpollServer() {}
-
-void EpollServer::_createSocket()
+EpollServer::EpollServer() : _epollFd(-1)
 {
-    _listenFd = socket(AF_INET, SOCK_STREAM, 0); // Create a TCP listen socket. 0 is the default protocol.
-    if (_listenFd == -1)
-        throw std::runtime_error("Error creating listen fd socket.");
+    _epollFd = epoll_create1(0);
+    if (_epollFd == -1)
+        throw std::runtime_error("epoll_create1 failed");
+}
 
-    int opt = 1;
-    if (setsockopt(_listenFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) // set socket options. In this case, SOL_SOCKET is the generic level and SO_REUSEADDR tells the kernel to reuse the address even if it is waiting
-        throw std::runtime_error("Error ");
+EpollServer::~EpollServer() {
+    for (std::set<int>::iterator it = _listenFds.begin(); it != _listenFds.end(); ++it)
+        close(*it);
+    if (_epollFd != -1)
+        close(_epollFd);
 }
 
 void EpollServer::_setNonBlocking(int fd)
@@ -25,22 +25,6 @@ void EpollServer::_setNonBlocking(int fd)
         throw std::runtime_error("fcntl setfl failed");
 }
 
-void EpollServer::_bindAndListen()
-{
-    struct sockaddr_in addr;
-    std::memset(&addr, 0, sizeof(addr));
-
-    addr.sin_family = AF_INET;                       // set the family to the same family of socket
-    addr.sin_port = htons(_port);                    // network byte order is big-endian, while many machines have little-endian. We need to transform the port to big-endian style
-    addr.sin_addr.s_addr = inet_addr(_host.c_str()); // convert address into binary number in network big-endian order
-
-    if (bind(_listenFd, (struct sockaddr *)&addr, sizeof(addr)) == -1) // associates socket to host + port
-        throw std::runtime_error("bind failed");
-
-    if (listen(_listenFd, SOMAXCONN) == -1) // start listening connections
-        throw std::runtime_error("listen failed");
-}
-
 void EpollServer::_registerToEpoll(int fd, uint32_t events)
 {
     struct epoll_event epoll_ev;
@@ -51,15 +35,58 @@ void EpollServer::_registerToEpoll(int fd, uint32_t events)
         throw std::runtime_error("epoll ctl failed");
 }
 
-void EpollServer::_acceptNewClient()
+int EpollServer::_createAndBindSocket(const std::string &host, int port) {
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd == -1)
+        throw std::runtime_error("socket() failed");
+
+    int opt = 1;
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1)
+    {
+        close(fd);
+        throw std::runtime_error("setsockopt failed");
+    }
+
+    struct sockaddr_in addr;
+    std::memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = inet_addr(host.c_str());
+
+    if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
+    {
+        close(fd);
+        throw std::runtime_error("bind failed");
+    }
+    if (listen(fd, SOMAXCONN) == -1)
+    {
+        close(fd);
+        throw std::runtime_error("listen failed");
+    }
+    return fd;
+}
+
+void EpollServer::addServer(ServerConfig &config)
+{
+    int fd = _createAndBindSocket(config.getHost(), config.getPort());
+    _setNonBlocking(fd);
+    _registerToEpoll(fd, EPOLLIN);
+    _listenFds.insert(fd);
+    _fdToConfig[fd] = &config;
+
+    std::ostringstream oss;
+    oss << config.getPort();
+    utils::log_info("Listening on " + config.getHost() + ":" + oss.str());
+}
+
+
+void EpollServer::_acceptNewClient(int listenFd)
 {
     while (true)
     {
         struct sockaddr_in client_addr;
         socklen_t client_len = sizeof(client_addr);
-
-        // Creates new socket for this client, fills client_addr with client IP and port and returns the new fd
-        int client_fd = accept(_listenFd, (struct sockaddr *)&client_addr, &client_len);
+        int client_fd = accept(listenFd, (struct sockaddr *)&client_addr, &client_len);
         if (client_fd == -1)
         {
             if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -67,41 +94,32 @@ void EpollServer::_acceptNewClient()
             utils::log_error("accept() failed");
             break;
         }
-
         _setNonBlocking(client_fd);
         _registerToEpoll(client_fd, EPOLLIN);
-        std::cout << "New Client fd = " << client_fd << std::endl;
-        //close(client_fd);
-        //TODO: probably it needs to be passed information to HttpParser here
+        // TODO: map client_fd → the ServerConfig* from _fdToConfig[listenFd]
     }
 }
 
-void EpollServer::init()
+void EpollServer::_handleClientData(int fd)
 {
-    _epollFd = epoll_create1(0);
-    _createSocket();
-    _setNonBlocking(_listenFd);
-    _bindAndListen();
-    _registerToEpoll(_listenFd, EPOLLIN);
-
-    utils::log_info("Server listening");
-}
-
-void EpollServer::_handleClientData(int fd) {
     HttpParser parser;
     char buffer[10000];
 
     ssize_t bytesRead = read(fd, buffer, sizeof(buffer));
-    if (bytesRead <= 0) {
+    if (bytesRead <= 0)
+    {
         return;
     }
     buffer[bytesRead] = '\0';
 
     bool complete = parser.feed(buffer);
-    if (complete) {
+    if (complete)
+    {
         std::cout << "\n=== Request Complete ===" << std::endl;
         parser.getRequest().print(std::cout);
-    } else if (parser.getState() == PARSE_ERROR) {
+    }
+    else if (parser.getState() == PARSE_ERROR)
+    {
         std::cout << "\n=== Parse Error ===" << std::endl;
         parser.getRequest().print(std::cout);
     }
@@ -124,21 +142,20 @@ void EpollServer::run()
     while (true)
     {
         int n = epoll_wait(_epollFd, _events, MAX_EVENTS, -1);
-
         if (n == -1)
         {
             if (errno == EINTR)
                 continue;
-            throw std::runtime_error("epoll did not waited");
+            throw std::runtime_error("epoll_wait failed");
         }
-
         for (int i = 0; i < n; i++)
         {
             int fd = _events[i].data.fd;
 
-            if (fd == _listenFd)
-                _acceptNewClient();
-            else {
+            if (_listenFds.count(fd))       // it's a listen socket → accept
+                _acceptNewClient(fd);
+            else                            // it's a client socket → handle
+            {
                 _handleClientData(fd);
                 close(fd);
             }
