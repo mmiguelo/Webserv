@@ -55,30 +55,30 @@ jobs:
           ./webserv config/default.conf &
           echo $! > /tmp/webserv.pid
           sleep 1
-      
+
       - name: GET Request is accepted without hang
         run: |
           RESPONSE=$(curl --max-time 5 -s -o /dev/null -w "%{http_code}" http://localhost:8080/)
           echo "Response code: $RESPONSE"
           test "$RESPONSE" != "000" && echo "PASS: server responded"
-      
+
       - name: GET with query string does not crash server
         run: |
           curl --max-time 5 -s "http://localhost:8080/path?foo=bar&baz=qux" -o /dev/null
           PID=$(cat /tmp/webserv.pid)
           kill -0 $PID && echo "PASS: server alive after query string request"
-      
+
       - name: HEAD method supported
         run: |
-          CODE=$(curl --max-time 5 -s -X HEAD -o /dev/null -w "%{http_code}" http://localhost:8080/)
+          CODE=$(curl --max-time 5 -s -I -o /dev/null -w "%{http_code}" http://localhost:8080/)
           test "$CODE" != "000" && echo "PASS: HEAD responded with $CODE"
-      
+
       - name: Garbage request line returns 400
         run: |
           RESPONSE=$(printf "THISISNOTHTTP\r\n\r\n" | nc -q 1 127.0.0.1 8080 | head -1)
           echo "Response: $RESPONSE"
           echo "$RESPONSE" | grep -q "400" && echo "PASS: 400 returned for garbage"
-      
+
       - name: Unsupported HTTP version returns 505
         run: |
           RESPONSE=$(printf "GET / HTTP/9.9\r\nHost: localhost\r\n\r\n" | nc -q 1 127.0.0.1 8080 | head -1)
@@ -92,12 +92,12 @@ jobs:
           done
           PID=$(cat /tmp/webserv.pid)
           kill -0 $PID && echo "PASS: server still alive after bad requests"
-      
+
       - name: Good request still works after bad requests
         run: |
           CODE=$(curl --max-time 5 -s -o /dev/null -w "%{http_code}" http://localhost:8080/)
           test "$CODE" != "000" && echo "PASS: server still responds after bad request"
-      
+
       - name: Large header returns 431
         run: |
           # Generate a header larger than 8KB
@@ -111,7 +111,7 @@ jobs:
         run: |
           PID=$(cat /tmp/webserv.pid)
           kill -0 $PID && echo "PASS: server alive after large header"
-      
+
       - name: Slow request delivered in chunks does not hang
         run: |
           # Send request line, wait, then send headers — simulates slow client

@@ -262,6 +262,99 @@ jobs:
           rm -f /tmp/received.bin
 
       # ═══════════════════════════════════════════════════════
+      # Test 6: Slow client forces multiple EPOLLOUT events
+      # ═══════════════════════════════════════════════════════
+
+      - name: "Test 6: Slow client forces multiple EPOLLOUT events"
+        run: |
+          EXPECTED=$(wc -c < www/large.bin)
+          RECEIVED=$(curl -s --limit-rate 100k http://localhost:8080/large.bin | wc -c)
+
+          echo "Expected=$EXPECTED, Received=$RECEIVED"
+          if [ "$EXPECTED" -ne "$RECEIVED" ]; then
+            echo "FAIL: The expected bytes are $EXPECTED and it was received $RECEIVED bytes"
+            exit 1
+          fi
+
+          echo "PASS: The expected bytes match the received ones"
+
+      # ═══════════════════════════════════════════════════════
+      # Test 7: Garbage request → 400
+      # ═══════════════════════════════════════════════════════
+      - name: "Test 7: Garbage request → 400"
+        run: |
+          RESPONSE=$(printf "THISISNOTHTTP\r\n\r\n" | nc -w 2 127.0.0.1 8080 | head -1)
+          echo "Response: $RESPONSE"
+          if echo "$RESPONSE" | grep -q "400"; then
+            echo "PASS: garbage request returned 400"
+          else
+            echo "FAIL: expected 400, got: $RESPONSE"
+            exit 1
+          fi
+
+      # ═══════════════════════════════════════════════════════
+      # Test 8: HEAD request — no body
+      # ═══════════════════════════════════════════════════════
+
+      - name: "Test 8: HEAD request — no body"
+        run: |
+          # Use nc to capture raw response and check nothing after \r\n\r\n
+          RAW=$(printf "HEAD / HTTP/1.1\r\nHost: localhost:8080\r\nConnection: close\r\n\r\n" \
+            | nc -w 3 127.0.0.1 8080)
+
+          # Must return 200
+          if ! echo "$RAW" | grep -q "HTTP/1.1 200"; then
+            echo "FAIL: HEAD did not return 200"
+            echo "Got: $RAW"
+            exit 1
+          fi
+
+          # Must have Content-Length header
+          if ! echo "$RAW" | grep -qi "Content-Length:"; then
+            echo "FAIL: HEAD response missing Content-Length"
+            exit 1
+          fi
+
+          # Count bytes after \r\n\r\n (the body section)
+          BODY_BYTES=$(printf "%s" "$RAW" | awk 'BEGIN{found=0} /^\r?$/{found=1; next} found{print}' | wc -c)
+          echo "HEAD body bytes after headers: $BODY_BYTES"
+
+          if [ "$BODY_BYTES" -eq 0 ]; then
+            echo "PASS: HEAD returned headers only, no body"
+          else
+            echo "FAIL: HEAD returned $BODY_BYTES body bytes"
+            exit 1
+          fi
+
+      # ═══════════════════════════════════════════════════════
+      # Test 9: double-close safety — EPOLLHUP on active fd
+      # ═══════════════════════════════════════════════════════
+      - name: "Test 9: Double-close safety"
+        run: |
+          PID=$(cat /tmp/webserv.pid)
+
+          # Send request and immediately close — nc -w 0 closes right after sending
+          printf "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n" | nc -w 0 127.0.0.1 8080 || true
+
+          sleep 1
+
+          if ! kill -0 $PID 2>/dev/null; then
+            echo "FAIL: server crashed after client closed early"
+            exit 1
+          fi
+
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 5 http://localhost:8080/ 2>/dev/null || echo "000")
+          echo "Response after double-close test: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" -ge 100 ] && [ "$HTTP_CODE" -lt 600 ]; then
+            echo "PASS: server alive after client closed early"
+          else
+            echo "FAIL: server not responding after double-close test"
+            exit 1
+          fi
+
+      # ═══════════════════════════════════════════════════════
       # Verify if server is still healthy after tests
       # ═══════════════════════════════════════════════════════
       - name: "Final health check"
@@ -289,6 +382,4 @@ jobs:
         if: always()
         run: |
           PID=$(cat /tmp/webserv.pid 2>/dev/null) && kill $PID 2>/dev/null || true
-          sleep 1
-          PID=$(cat /tmp/webserv.pid 2>/dev/null) && kill -9 $PID 2>/dev/null || true
           rm -f /tmp/webserv.pid

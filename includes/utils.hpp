@@ -21,7 +21,10 @@
 #include <sstream>
 #include <cerrno>
 
-#include "http/HttpRequest.hpp"
+#include <csignal>
+#include "HttpRequest.hpp"
+#include "HttpParser.hpp"
+#include "ServerConfig.hpp"
 
 /*=============================================================================#
 #                              UTILITY FUNCTIONS                               #

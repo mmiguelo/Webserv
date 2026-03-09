@@ -9,6 +9,7 @@ CXXFLAGS	= -Wall -Wextra -Werror -Wshadow -std=c++98
 INCLUDES	= -I./includes
 INCLUDES	+= -I./includes/http
 INCLUDES	+= -I./includes/epoll
+INCLUDES	+= -I./includes/config
 
 #==============================================================================#
 #                                    PATHS                                     #
@@ -20,7 +21,8 @@ OBJ_DIR		= obj
 VPATH =		$(SRC_DIR)
 VPATH +=	$(SRC_DIR)/epoll
 VPATH +=	$(SRC_DIR)/http
-#VPATH +=	$(SRC_DIR)/file_config
+VPATH +=	$(SRC_DIR)/config
+VPATH +=	$(SRC_DIR)/config/parser
 
 #==============================================================================#
 #                                   SOURCES                                    #
@@ -36,12 +38,24 @@ HTTP =	HttpRequest.cpp
 HTTP +=	HttpParser.cpp
 HTTP +=	HttpResponse.cpp
 
-#FILE_CONFIG	= file_config.cpp
+FILE_PARSE = ConfigParser.cpp
+FILE_PARSE += ConfigParserLocation.cpp
+FILE_PARSE += ConfigParserLocationDirectives.cpp
+FILE_PARSE += ConfigParserServer.cpp
+FILE_PARSE += ConfigParserServerDirectives.cpp
+
+FILE_CONFIG	= Validator.cpp
+FILE_CONFIG	+= ValidatorUtils.cpp
+FILE_CONFIG += ValidatorUtils2.cpp
+FILE_CONFIG	+= Tokenizer.cpp
+FILE_CONFIG	+= UtilsConfig.cpp
+FILE_CONFIG += ServerConfig.cpp
 
 SRC	=	$(GENERAL)
 SRC	+=	$(HTTP)
 SRC	+=	$(EPOLL)
-#SRC	+=	$(FILE_CONFIG)
+SRC	+=	$(FILE_CONFIG)
+SRC +=	$(FILE_PARSE)
 
 OBJ			= $(SRC:%.cpp=$(OBJ_DIR)/%.o)
 
