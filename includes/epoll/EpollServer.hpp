@@ -33,6 +33,7 @@ private:
     int _epollFd;
     std::set<int> _listenFds;
     std::map<int, ServerConfig *> _fdToConfig;
+    std::map<int, ClientData> _clients;
 
     struct epoll_event _events[MAX_EVENTS];
 
