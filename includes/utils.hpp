@@ -20,9 +20,9 @@
 #include <vector>
 #include <sstream>
 
-#include "http/HttpRequest.hpp"
-#include "http/HttpParser.hpp"
-#include "epoll/EpollServer.hpp"
+#include <csignal>
+#include "HttpRequest.hpp"
+#include "HttpParser.hpp"
 #include "ServerConfig.hpp"
 
 /*=============================================================================#

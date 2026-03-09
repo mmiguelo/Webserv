@@ -184,13 +184,13 @@ bool HttpParser::_parseHeaders()
                 if (_contentLength == 0)
                 {
                     _state = PARSE_COMPLETE;
-                    return false; // no need to reed more, since there will be no body
+                    return true; // no need to reed more, since there will be no body
                 }
                 _state = PARSE_BODY_CONTENT_LENGTH;
                 return true;
             }
             _state = PARSE_COMPLETE;
-            return false;
+            return true;
         }
 
         std::string line = _buffer.substr(0, pos);

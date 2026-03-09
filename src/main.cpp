@@ -1,4 +1,5 @@
 #include "utils.hpp"
+#include "EpollServer.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -12,6 +13,7 @@ void printServers(const std::map<int, ServerConfig> &servers);
 
 int main(int argc, char **argv)
 {
+    signal(SIGPIPE, SIG_IGN);
     std::map<int, ServerConfig> servers;
     try
     {
@@ -39,8 +41,8 @@ int main(int argc, char **argv)
         std::string content = buffer.str();
 
         std::vector<Token> tokens = Tokenizer::tokenize(content);
-        //for (size_t i = 0; i < tokens.size(); i++)
-        //    debugPrintToken(tokens[i]);
+        // for (size_t i = 0; i < tokens.size(); i++)
+        //     debugPrintToken(tokens[i]);
         ConfigParser parser(tokens);
         servers = parser.parse();
         Validator::validate(servers);
