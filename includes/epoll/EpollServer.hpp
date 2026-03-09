@@ -50,6 +50,6 @@ public:
     EpollServer();
     ~EpollServer();
 
-    void addServer(ServerConfig &config);
+    void addServer(ServerConfig &config, int port);
     void run();
 };

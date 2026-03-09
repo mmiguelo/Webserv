@@ -2,6 +2,7 @@
 #include "config/UtilsConfig.hpp"
 #include <stdexcept>
 #include <cstdlib>
+#include <iostream>
 
 void Validator::validateHost(const ServerConfig &server) {
 	if (!isValidHost(server.getHost()))
@@ -9,11 +10,16 @@ void Validator::validateHost(const ServerConfig &server) {
 }
 
 void Validator::validatePort(const ServerConfig &server) {
-	int port = server.getPort();
-	if (port == -1)
-		throw std::runtime_error("Server block missing listen directive.");
-	if (port <= 0 || port > 65535)
-		throw std::runtime_error("Invalid port number.");
+	const std::vector<int>& ports = server.getPorts();
+	std::vector<int>::const_iterator it;
+	for (it = ports.begin(); it != ports.end(); ++it) {
+		std::cout << "Validating port: " <<  *it << std::endl;
+		int port = *it;
+		if (port == -1)
+			throw std::runtime_error("Server block missing listen directive.");
+		if (port <= 0 || port > 65535)
+			throw std::runtime_error("Invalid port number.");
+	}
 }
 
 void Validator::validateRoot(const ServerConfig &server) {

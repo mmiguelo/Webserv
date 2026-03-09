@@ -36,6 +36,14 @@ void HttpParser::reset()
     _headerSize = 0;
 }
 
+void HttpParser::setServerConfig(const ServerConfig& serverConfig) {
+    _serverConfig = const_cast<ServerConfig*>(&serverConfig);
+}
+
+ServerConfig& HttpParser::getServerConfig() const {
+    return *_serverConfig;
+}
+
 ParserState HttpParser::getState() const {
     return _state;
 }
@@ -49,8 +57,9 @@ const HttpRequest& HttpParser::getRequest() const {
 }
 
 // Feed raw data into the parser. Returns true ONLY when request is COMPLETE.
-bool HttpParser::feed(const std::string& data) {
+bool HttpParser::feed(const std::string& data, const ServerConfig& serverConfig) {
     _buffer.append(data);
+    setServerConfig(serverConfig);
     while (true)
     {
         if (_state == PARSE_REQUEST_LINE)
@@ -192,7 +201,7 @@ bool HttpParser::_parseHeaders()
                 }
 
                 _contentLength = static_cast<size_t>(std::strtol(cl.c_str(), NULL, 10));
-                size_t client_max_body_size = 1048576; //configFile.getMaxBodySize();
+                size_t client_max_body_size = _serverConfig->getClientMaxBodySize();
 
                 if (_contentLength > client_max_body_size) {
                     _request.setErrorCode(STATUS_PAYLOAD_TOO_LARGE);
@@ -269,7 +278,7 @@ bool HttpParser::_parseBodyChunked() {
         }
         unsigned long chunkSize = std::strtoul(sizeStr.c_str(), NULL, 16);
         size_t totalBodySize = _request.getBody().size() + chunkSize;
-        size_t client_max_body_size = 1048576; //configFile.getMaxBodySize();
+        size_t client_max_body_size = _serverConfig->getClientMaxBodySize();
 
         if (totalBodySize > client_max_body_size) {
             _request.setErrorCode(STATUS_PAYLOAD_TOO_LARGE);

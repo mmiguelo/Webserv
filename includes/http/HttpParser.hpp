@@ -2,6 +2,7 @@
 
 #include <string>
 #include "utils.hpp"
+#include "ServerConfig.hpp"
 
 // to prevent memory abuse on header
 // 8192 (8kb) is the default on NGINX
@@ -18,6 +19,7 @@ enum ParserState {
 
 class HttpParser {
     private:
+        ServerConfig* _serverConfig;
         ParserState _state;
         std::string _buffer;
         HttpRequest _request;
@@ -36,11 +38,13 @@ class HttpParser {
         HttpParser& operator=(const HttpParser& other);
 
         // Feed raw data into the parser. Returns true when request is COMPLETE.
-        bool            feed(const std::string& data);
+        bool            feed(const std::string& data, const ServerConfig& serverConfig);
         void            reset();
 
         ParserState     getState() const;
         HttpRequest&    getRequest();
         const HttpRequest& getRequest() const;
         size_t          getHeaderSize() const;
+        void            setServerConfig(const ServerConfig& serverConfig);
+        ServerConfig&   getServerConfig() const;
 };

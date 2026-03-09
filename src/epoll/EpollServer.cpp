@@ -69,16 +69,16 @@ int EpollServer::_createAndBindSocket(const std::string &host, int port)
     return fd;
 }
 
-void EpollServer::addServer(ServerConfig &config)
+void EpollServer::addServer(ServerConfig &config, int port)
 {
-    int fd = _createAndBindSocket(config.getHost(), config.getPort());
+    int fd = _createAndBindSocket(config.getHost(), port);
     _setNonBlocking(fd);
     _registerToEpoll(fd, EPOLLIN);
     _listenFds.insert(fd);
     _fdToConfig[fd] = &config;
 
     std::ostringstream oss;
-    oss << config.getPort();
+    oss << port;
     utils::log_info("Listening on " + config.getHost() + ":" + oss.str());
 }
 
@@ -148,7 +148,7 @@ void EpollServer::_handleClientData(int fd)
     data.last_activity = time(NULL);
 
     std::string newData(buffer, bytesRead);
-    bool complete = data.parser.feed(newData);
+    bool complete = data.parser.feed(newData, *_fdToConfig[data.server_fd]);
 
     _createResponse(fd, complete, data);
 }
@@ -266,6 +266,7 @@ void EpollServer::_handleClientResponse(int fd)
 
 void EpollServer::run()
 {
+    std::cout << _fdToConfig.size() << " server(s) configured, waiting for connections..." << std::endl;
     while (true)
     {
         int n = epoll_wait(_epollFd, _events, MAX_EVENTS, 1000);
@@ -278,7 +279,6 @@ void EpollServer::run()
         }
 
         _checkTimeout();
-
         for (int i = 0; i < n; i++)
         {
             int fd = _events[i].data.fd;
@@ -286,6 +286,7 @@ void EpollServer::run()
 
             if (_listenFds.count(fd)) // it's a listen socket → accept
             {
+                std::cout << _listenFds.size() << " listen sockets, accepting on fd " << fd << std::endl;
                 _acceptNewClient(fd);
             }
             else if (_clients.count(fd)) // it's a client socket → handle

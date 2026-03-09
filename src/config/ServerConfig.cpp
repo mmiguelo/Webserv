@@ -1,7 +1,9 @@
 #include "config/ServerConfig.hpp"
 #include <algorithm>
 
-ServerConfig::ServerConfig() : _host("0.0.0.0"), _port(-1), _client_max_body_size(1024 * 1024) {}
+ServerConfig::ServerConfig() : _host("0.0.0.0"), _client_max_body_size(1024 * 1024) {
+	//_ports.push_back(-1); //inicializamos a porta com -1 para indicar que ainda não foi configurada
+}
 
 static bool compareLocationLength(const LocationConfig& a, const LocationConfig& b) {
 	return a.path.length() > b.path.length();
@@ -17,7 +19,13 @@ const std::string& ServerConfig::getHost() const {
 }
 
 int ServerConfig::getPort() const {
-	return _port;
+	if (_ports.empty())
+		return -1;
+	return _ports[_ports.size() - 1]; //retorna a última porta adicionada, caso haja mais de uma
+}
+
+std::vector<int> ServerConfig::getPorts() const {
+	return _ports;
 }
 
 size_t ServerConfig::getClientMaxBodySize() const {
@@ -51,7 +59,7 @@ void ServerConfig::setHost(const std::string& host) {
 }
 
 void ServerConfig::setPort(int port) {
-	_port = port;
+	_ports.push_back(port);
 }
 
 void ServerConfig::setClientMaxBodySize(size_t size) {
