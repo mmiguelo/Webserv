@@ -1,0 +1,50 @@
+<!-- DEFAULT HOMEPAGE-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Homepage</title>
+    <style>
+        body {
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #000 0%, #006cbd 100%);
+            min-height: 100vh;
+            overflow: hidden;
+            color: #fff;
+            padding: 20px;
+        }
+        button {
+
+        }
+    </style>
+</head>
+<body>
+    <div class="titlebar">
+        <div class="titlebar-text">
+            <div class="titlebar-icon"></div>
+                <h1>My Web Server</h1>
+        </div>
+    </div>
+    <p>This is a simple homepage for our web server. You can navigate to different pages or trigger errors to see the custom error pages we have created.</p>
+        <button class="button">
+            <a href="./default.html">Go to homepage</a>
+        </button>
+        <button class="button">
+             <a href="./about.html">Go to about page</a>
+        </button>
+        <button class="button">
+            <a href="./errors/403.html">Trigger 403 Forbidden</a>
+        </button>
+        <button class="button">
+            <a href="./errors/404.html">Trigger 404 Not Found</a>
+        </button>
+        <button class="button">
+                <a href="./errors/408.html">Trigger 408 Request Timeout</a>
+        </button>
+        <button class="button">
+            <a href="./errors/500.html">Trigger 500 Internal Server Error</a>
+        </button>
+</body>
+</html>
