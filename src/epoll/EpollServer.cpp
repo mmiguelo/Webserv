@@ -19,11 +19,11 @@ EpollServer::~EpollServer()
 
 void EpollServer::_setNonBlocking(int fd)
 {
-    int flags = fcntl(fd, F_GETFL, 0);
+    int flags = fcntl(fd, F_GETFL, 0); // get the binary flag for fd
     if (flags == -1)
         throw std::runtime_error("fcntl getfl failed");
 
-    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1)
+    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) // set the flag to nonblocking
         throw std::runtime_error("fcntl setfl failed");
 }
 
@@ -33,7 +33,7 @@ void EpollServer::_registerToEpoll(int fd, uint32_t events)
     epoll_ev.events = events;
     epoll_ev.data.fd = fd;
 
-    if (epoll_ctl(_epollFd, EPOLL_CTL_ADD, fd, &epoll_ev) == -1)
+    if (epoll_ctl(_epollFd, EPOLL_CTL_ADD, fd, &epoll_ev) == -1) // add the new fd to the list
         throw std::runtime_error("epoll ctl failed");
 }
 
@@ -284,11 +284,11 @@ void EpollServer::run()
             int fd = _events[i].data.fd;
             uint32_t ev = _events[i].events;
 
-            if (_listenFds.count(fd))
+            if (_listenFds.count(fd)) // it's a listen socket → accept
             {
                 _acceptNewClient(fd);
             }
-            else if (_clients.count(fd))
+            else if (_clients.count(fd)) // it's a client socket → handle
             {
                 if (ev & (EPOLLERR | EPOLLHUP))
                     _closeClient(fd);
