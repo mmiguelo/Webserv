@@ -13,11 +13,10 @@
 #include <set>
 #include <map>
 #include "ServerConfig.hpp"
+#include "HttpParser.hpp"
 
 #define MAX_EVENTS 64
 #define MAX_TIMEOUT 10
-
-class HttpParser;
 
 struct ClientData
 {

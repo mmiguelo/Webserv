@@ -229,6 +229,17 @@ void EpollServer::_createResponse(int fd, bool complete, ClientData &data)
     }
 }
 
+void EpollServer::_closeClient(int fd)
+{
+    // Guard against double-close
+    if (_clients.count(fd) == 0)
+        return;
+    epoll_ctl(_epollFd, EPOLL_CTL_DEL, fd, NULL);
+    close(fd);
+    _clients.erase(fd);
+    std::cout << "Connection closed on fd " << fd << std::endl;
+}
+
 void EpollServer::_handleClientResponse(int fd)
 {
     ClientData &data = _clients[fd];

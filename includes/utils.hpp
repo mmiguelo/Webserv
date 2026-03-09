@@ -21,9 +21,8 @@
 #include <sstream>
 
 #include <csignal>
-#include "http/HttpRequest.hpp"
-#include "http/HttpParser.hpp"
-#include "epoll/EpollServer.hpp"
+#include "HttpRequest.hpp"
+#include "HttpParser.hpp"
 #include "ServerConfig.hpp"
 
 /*=============================================================================#
