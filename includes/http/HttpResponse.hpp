@@ -23,7 +23,7 @@ class HttpResponse {
         HttpResponse& operator=(const HttpResponse& other);
 
         void build(int statusCode, const std::string& body, const std::string& contentType, const std::string& version);
-        void buildError(int statusCode, const HttpRequest& request);
+        std::string buildError(int statusCode, const HttpRequest& request);
         std::string serialize(HttpMethod method) const;
 
         const std::string& getStatusMessage(int code) const;

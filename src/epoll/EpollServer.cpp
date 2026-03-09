@@ -1,5 +1,7 @@
 #include "EpollServer.hpp"
 #include "HttpParser.hpp"
+#include "HttpRequest.hpp"
+#include "HttpResponse.hpp"
 #include <fstream>
 
 EpollServer::EpollServer() : _epollFd(-1)
@@ -155,78 +157,41 @@ void EpollServer::_handleClientData(int fd)
 
 void EpollServer::_createResponse(int fd, bool complete, ClientData &data)
 {
-    if (complete)
-    {
-        HttpRequest request = data.parser.getRequest();
+    HttpResponse response;
+    HttpRequest request = data.parser.getRequest();
+    std::string responseStr;
+    int statusCode = static_cast<int>(request.getErrorCode());
 
-        std::string path = request.getPath();
-        if (path == "/")
-            path = "/index.html";
-
-        std::string body;
-        std::string contentType = "text/plain";
-
-        std::string filePath = "www" + path;
-        std::ifstream file(filePath.c_str(), std::ios::binary);
-        if (file.good())
-        {
-            std::ostringstream content;
-            content << file.rdbuf();
-            body = content.str();
-            file.close();
-
-            if (path.find(".bin") != std::string::npos)
-                contentType = "application/octet-stream";
-            else if (path.find(".html") != std::string::npos)
-                contentType = "text/html";
-            else if (path.find(".css") != std::string::npos)
-                contentType = "text/css";
-            else if (path.find(".js") != std::string::npos)
-                contentType = "application/javascript";
-        }
+    if (data.parser.getState() == PARSE_ERROR) {
+        if (statusCode == STATUS_METHOD_NOT_ALLOWED)
+            responseStr = response.buildError(405, request);
+        else if (statusCode == STATUS_REQUEST_HEADER_TOO_LARGE)
+            responseStr = response.buildError(431, request);
         else
-        {
-            body = "Request received successfully.\nPath: " + request.getPath();
+            responseStr = response.buildError(400, request);
+    }
+    else if (complete) {
+        if (statusCode >= 400) {
+            responseStr = response.buildError(statusCode, request);
+        } 
+        else {
+            // TODO: This will be replaced by actual file serving / CGI output
+            std::string body = "Request received successfully.\nPath: " + request.getPath();
             if (!request.getBody().empty())
                 body += "\nBody: " + request.getBody();
+            response.build(statusCode, body, "text/plain", request.getVersion());
+            responseStr = response.serialize(request.getMethod());
         }
-
-        std::ostringstream oss;
-        oss << request.getVersion() << " " << request.getErrorCode() << " OK\r\n"
-            << "Content-Type: " << contentType << "\r\n"
-            << "Content-Length: " << body.size() << "\r\n"
-            << "Connection: close\r\n"
-            << "\r\n";
-
-        if (request.getMethod() != METHOD_HEAD)
-            oss << body;
-
-        data.send_buf = oss.str();
-
-        struct epoll_event ev;
-        ev.events = EPOLLOUT | EPOLLERR | EPOLLHUP;
-        ev.data.fd = fd;
-        epoll_ctl(_epollFd, EPOLL_CTL_MOD, fd, &ev);
     }
-    else if (data.parser.getState() == PARSE_ERROR)
-    {
-        HttpRequest request = data.parser.getRequest();
+    else
+        responseStr = response.buildError(400, request); // Incomplete request, treat as bad request
+    
+    data.send_buf = responseStr;
 
-        std::string body = "Bad Request";
-        std::ostringstream oss;
-        oss << request.getVersion() << " " << request.getErrorCode() << " OK\r\n"
-            << "Content-Type: text/plain\r\n"
-            << "Content-Length: " << body.size() << "\r\n"
-            << "Connection: close\r\n"
-            << "\r\n"
-            << body;
-        data.send_buf = oss.str();
-
-        struct epoll_event ev;
-        ev.events = EPOLLOUT | EPOLLERR | EPOLLHUP;
-        ev.data.fd = fd;
-        epoll_ctl(_epollFd, EPOLL_CTL_MOD, fd, &ev);
-    }
+    struct epoll_event ev;
+    ev.events = EPOLLOUT | EPOLLERR | EPOLLHUP;
+    ev.data.fd = fd;
+    epoll_ctl(_epollFd, EPOLL_CTL_MOD, fd, &ev);
 }
 
 void EpollServer::_closeClient(int fd)

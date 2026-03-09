@@ -63,7 +63,7 @@ void HttpResponse::build(int statusCode, const std::string& body, const std::str
     _version = version;
 }
 
-void HttpResponse::buildError(int statusCode, const HttpRequest& request) {
+std::string HttpResponse::buildError(int statusCode, const HttpRequest& request) {
     _version = request.getVersion().empty() ? "HTTP/1.1" : request.getVersion();
     _statusCode = statusCode;
     std::string ct = request.getHeader("content-type");
@@ -75,6 +75,7 @@ void HttpResponse::buildError(int statusCode, const HttpRequest& request) {
         << statusCode << " " << getStatusMessage(statusCode)
         << "</h1>\n</body>\n</html>";
     _body = oss.str();
+    return _body;
 }
 
 std::string HttpResponse::serialize(HttpMethod method) const {
