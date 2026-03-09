@@ -13,6 +13,7 @@ void printServers(const std::map<int, ServerConfig> &servers);
 
 int main(int argc, char **argv)
 {
+    signal(SIGPIPE, SIG_IGN);
     std::map<int, ServerConfig> servers;
     try
     {
