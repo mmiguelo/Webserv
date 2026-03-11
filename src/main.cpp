@@ -41,15 +41,15 @@ int main(int argc, char **argv)
         std::string content = buffer.str();
 
         std::vector<Token> tokens = Tokenizer::tokenize(content);
-        for (size_t i = 0; i < tokens.size(); i++)
-            debugPrintToken(tokens[i]);
+        /* for (size_t i = 0; i < tokens.size(); i++)
+            debugPrintToken(tokens[i]); */
         ConfigParser parser(tokens);
         parser.parse(servers);
         Validator::validate(servers);
         std::cout << "\nConfig parsed and validated successfully\n";
 
         // 4️⃣ Print parsed config
-        printServers(servers);
+        //printServers(servers);
 
         EpollServer server;
         std::map<int, ServerConfig>::iterator it;

@@ -35,7 +35,6 @@ void ConfigParser::parseListen(ServerConfig& serverBlock) {
         throw parseError("Invalid port number: " + port);
 	int portNum = std::atoi(port.c_str()); //convertemos a string para int
 	serverBlock.setHost(host); //atribuimos o valor do host ao serverBlock
-	std::cout << "Parsed listen directive - Host: " << host << ", Port: " << portNum << std::endl; //debug print
 	serverBlock.setPort(portNum); //atribuimos o valor da porta ao serverBlock
 	std::cout << "Current ports in server block: ";
 	std::vector<int> ports = serverBlock.getPorts();

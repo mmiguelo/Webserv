@@ -207,14 +207,19 @@ jobs:
       # ═══════════════════════════════════════════════════════
       - name: "Test 3: POST body exceeds max size returns 413"
         run: |
-          # Generate a body larger than any reasonable client_max_body_size (10 MB)
-          BIG_BODY=$(head -c 10485760 /dev/urandom | base64 | tr -d '\n')
+          # Generate a body larger than client_max_body_size (2 MB, limit is 1M)
+          dd if=/dev/zero of=/tmp/bigfile bs=1024 count=2048 2>/dev/null
 
+          # Test with the file - capture only the HTTP code
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST \
-            --data-binary "$BIG_BODY" \
-            --max-time 10 \
-            http://localhost:8080/ 2>/dev/null || echo "000")
+              -X POST \
+              -H "Expect:" \
+              --data-binary @/tmp/bigfile \
+              --max-time 10 \
+              http://localhost:8080/ 2>/dev/null || echo "000")
+
+          # Clean up
+          rm -f /tmp/bigfile
 
           echo "HTTP code for oversized body: $HTTP_CODE"
 
