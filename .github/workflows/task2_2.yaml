@@ -36,8 +36,8 @@ jobs:
             echo "SKIP: PR T${PR_SPRINT}.${PR_TASK} does not require T${SPRINT}.${TASK} tests"
           fi
 
-  Task_2-1_Response_Builder_Tests:
-    name: Task 2.1 Response Builder Tests
+  Task_2-2_Response_Builder_Tests:
+    name: Task 2.2 - Body Handling, Chunked Decoding & Response Builder
     needs: gate
     if: needs.gate.outputs.should_run == 'true'
     runs-on: ubuntu-latest
@@ -111,7 +111,7 @@ jobs:
             exit 1
           fi
 
-          if ! echo "$RESPONSE" | grep -qP "Date:" \w{3}, \d{2} \w{3} \d{4} \d{2}:\d{2}\d{2} GMT"; then
+          if ! echo "$RESPONSE" | grep -qP "Date: \w{3}, \d{2} \w{3} \d{4} \d{2}:\d{2}:\d{2} GMT"; then
             echo "FAIL: Date header missing or wrong format (must be UTF RFC 7231)"
             exit 1
           fi
@@ -130,7 +130,7 @@ jobs:
             --max-time 5 \
             http://localhost:8080/echo 2>/dev/null)
 
-          HTTP_CODE = $(echo "$RESPONSE" | tail -1)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -n -1)
 
           echo "HTTP CODE: $HTTP_CODE"
@@ -147,29 +147,6 @@ jobs:
           fi
 
           echo "PASS: POST body echoed correctly (HTTP $HTTP_CODE)"
-
-      # ═══════════════════════════════════════════════════════
-      # Test 3: POST body exceeds client_max_body_size → 413
-      # ═══════════════════════════════════════════════════════
-      - name: "Test 3: POST body exceeds max size returns 413"
-        run: |
-          # Generate a body larger than any reasonable client_max_body_size (10 MB)
-          BIG_BODY=$(head -c 10485760 /dev/urandom | base64 | tr -d '\n')
-
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST \
-            --data-binary "$BIG_BODY" \
-            --max-time 10 \
-            http://localhost:8080/ 2>/dev/null || echo "000")
-
-          echo "HTTP code for oversized body: $HTTP_CODE"
-
-          if [ "$HTTP_CODE" != "413" ]; then
-            echo "FAIL: expected 413 Payload Too Large, got $HTTP_CODE"
-            exit 1
-          fi
-
-          echo "PASS: oversized POST body correctly rejected with 413"
 
       # ═══════════════════════════════════════════════════════
       # Test 4: Chunked POST via raw TCP — body decoded correctly
@@ -201,52 +178,6 @@ jobs:
           echo "PASS: chunked POST decoded and echoed correctly"
 
       # ═══════════════════════════════════════════════════════
-      # Test 5: HEAD request — headers only, no body bytes
-      # ═══════════════════════════════════════════════════════
-      - name: "Test 5: HEAD returns headers only, zero body bytes"
-        run: |
-          # curl -I sends HEAD; -D - dumps headers, -o /dev/null discards body
-          HEAD_RESPONSE=$(curl -sI --max-time 5 http://localhost:8080/ 2>/dev/null)
-          GET_RESPONSE=$(curl -s --max-time 5 http://localhost:8080/ 2>/dev/null)
-
-          echo "HEAD response:"
-          echo "$HEAD_RESPONSE"
-
-          # Must return 200
-          if ! echo "$HEAD_RESPONSE" | grep -q "HTTP/1.1 200"; then
-            echo "FAIL: HEAD did not return 200"
-            exit 1
-          fi
-
-          # HEAD must have Content-Length header
-          if ! echo "$HEAD_RESPONSE" | grep -qi "Content-Length:"; then
-            echo "FAIL: HEAD response missing Content-Length"
-            exit 1
-          fi
-
-          # Verify HEAD Content-Length matches GET Content-Length
-          HEAD_CL=$(echo "$HEAD_RESPONSE" | grep -i "Content-Length:" | grep -oP '\d+')
-          GET_CL=${#GET_RESPONSE}
-
-          echo "HEAD Content-Length: $HEAD_CL"
-          echo "GET body size: $GET_CL"
-
-          # HEAD response body must be empty (curl -I downloads nothing)
-          HEAD_BODY_SIZE=$(curl -s -I --max-time 5 \
-            -o /tmp/head_body.bin -D /dev/null \
-            http://localhost:8080/ 2>/dev/null; wc -c < /tmp/head_body.bin)
-
-          echo "HEAD body bytes received: $HEAD_BODY_SIZE"
-
-          if [ "$HEAD_BODY_SIZE" -ne 0 ]; then
-            echo "FAIL: HEAD response contains $HEAD_BODY_SIZE body bytes (must be 0)"
-            exit 1
-          fi
-
-          echo "PASS: HEAD returns headers only, zero body bytes, Content-Length=$HEAD_CL"
-          rm -f /tmp/head_body.bin
-
-      # ═══════════════════════════════════════════════════════
       # FINAL HEALTH CHECK
       # ═══════════════════════════════════════════════════════
       - name: "Final health check"
@@ -270,6 +201,79 @@ jobs:
           fi
 
           echo "PASS: server healthy after full test suite"
+
+      # ═══════════════════════════════════════════════════════
+      # Test 3: POST body exceeds client_max_body_size → 413
+      # ═══════════════════════════════════════════════════════
+      - name: "Test 3: POST body exceeds max size returns 413"
+        run: |
+          # Generate a body larger than client_max_body_size (2 MB, limit is 1M)
+          dd if=/dev/zero of=/tmp/bigfile bs=1024 count=2048 2>/dev/null
+
+          # Test with the file - capture only the HTTP code
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X POST \
+              -H "Expect:" \
+              --data-binary @/tmp/bigfile \
+              --max-time 10 \
+              http://localhost:8080/ 2>/dev/null || echo "000")
+
+          # Clean up
+          rm -f /tmp/bigfile
+
+          echo "HTTP code for oversized body: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" != "413" ]; then
+            echo "FAIL: expected 413 Payload Too Large, got $HTTP_CODE"
+            exit 1
+          fi
+
+          echo "PASS: oversized POST body correctly rejected with 413"
+
+      # ═══════════════════════════════════════════════════════
+      # Test 5: HEAD request — headers only, no body bytes
+      # ═══════════════════════════════════════════════════════
+      - name: "Test 5: HEAD returns headers only, zero body bytes"
+        run: |
+          # Use raw netcat to send HEAD and capture exact response
+          REQUEST="HEAD / HTTP/1.1\r\nHost: localhost:8080\r\nConnection: close\r\n\r\n"
+          
+          RESPONSE=$(printf "$REQUEST" | nc -q 2 127.0.0.1 8080 2>/dev/null || \
+                     printf "$REQUEST" | nc -w 2 127.0.0.1 8080 2>/dev/null)
+
+          echo "HEAD response:"
+          echo "$RESPONSE"
+
+          # Must return 200
+          if ! echo "$RESPONSE" | grep -q "HTTP/1.1 200"; then
+            echo "FAIL: HEAD did not return 200"
+            exit 1
+          fi
+
+          # HEAD must have Content-Length header
+          if ! echo "$RESPONSE" | grep -qi "Content-Length:"; then
+            echo "FAIL: HEAD response missing Content-Length"
+            exit 1
+          fi
+
+          # Check that response ends with \r\n\r\n (headers only, no body)
+          # The response should be ONLY headers - check there's no content after the blank line
+          HEADER_END=$(printf "$REQUEST" | nc -q 2 127.0.0.1 8080 2>/dev/null | sed -n '/^\r$/q;p' | wc -c || echo "0")
+          TOTAL_SIZE=$(printf "$REQUEST" | nc -q 2 127.0.0.1 8080 2>/dev/null | wc -c || echo "0")
+          
+          # Account for the \r\n\r\n separator (4 bytes)
+          BODY_SIZE=$((TOTAL_SIZE - HEADER_END - 4))
+          
+          echo "Total response size: $TOTAL_SIZE"
+          echo "Header size: $HEADER_END"
+          echo "Body size: $BODY_SIZE"
+
+          if [ "$BODY_SIZE" -gt 0 ]; then
+            echo "FAIL: HEAD response contains body bytes (must be 0)"
+            exit 1
+          fi
+
+          echo "PASS: HEAD returns headers only, zero body bytes"
 
       # ═══════════════════════════════════════════════════════
       # TEARDOWN

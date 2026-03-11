@@ -19,10 +19,12 @@
 #include <sstream>
 #include <vector>
 #include <sstream>
+#include <cerrno>
 
-#include "http/HttpRequest.hpp"
-#include "http/HttpParser.hpp"
-#include "epoll/EpollServer.hpp"
+#include <csignal>
+#include "HttpRequest.hpp"
+#include "HttpParser.hpp"
+#include "ServerConfig.hpp"
 
 /*=============================================================================#
 #                              UTILITY FUNCTIONS                               #
@@ -39,3 +41,5 @@ std::string         toLowerStr(const std::string& str);
 std::string         trimWhitespace(const std::string& str);
 HttpMethod          stringToMethod(const std::string& method);
 std::string         methodToString(HttpMethod method);
+bool                isValidDecimal(const std::string& s);
+bool                isValidHexadecimal(const std::string& s);

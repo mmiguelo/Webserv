@@ -1,6 +1,8 @@
 #include "utils.hpp"
 
-HttpRequest::HttpRequest() : _method(METHOD_UNKNOWN), _errorCode(STATUS_OK) {}
+HttpRequest::HttpRequest() : _method(METHOD_UNKNOWN), _statusCode(STATUS_OK) {
+    //initStatusCode();
+}
 
 HttpRequest::~HttpRequest() {}
 
@@ -11,7 +13,7 @@ HttpRequest::HttpRequest(const HttpRequest& other)
       _version(other._version),
       _headers(other._headers),
       _body(other._body),
-      _errorCode(other._errorCode) {}
+      _statusCode(other._statusCode) {}
 
 HttpRequest& HttpRequest::operator=(const HttpRequest& other) {
     if (this != &other) {
@@ -21,7 +23,7 @@ HttpRequest& HttpRequest::operator=(const HttpRequest& other) {
         _version = other._version;
         _headers = other._headers;
         _body = other._body;
-        _errorCode = other._errorCode;
+        _statusCode = other._statusCode;
     }
     return *this;
 }
@@ -33,7 +35,7 @@ void HttpRequest::reset() {
     _version.clear();
     _headers.clear();
     _body.clear();
-    _errorCode = STATUS_OK;
+    _statusCode = STATUS_OK;
 }
 
 HttpMethod HttpRequest::getMethod() const {
@@ -57,7 +59,7 @@ const std::string& HttpRequest::getBody() const {
 }
 
 HttpStatusCode HttpRequest::getErrorCode() const {
-    return _errorCode;
+    return _statusCode;
 }
 
 bool HttpRequest::hasHeader(const std::string& key) const {
@@ -105,7 +107,7 @@ void HttpRequest::setBody(const std::string& body) {
 }
 
 void HttpRequest::setErrorCode(HttpStatusCode code) {
-    _errorCode = code;
+    _statusCode = code;
 }
 
 void HttpRequest::setHeader(const std::string& key, const std::string& value) {
@@ -120,7 +122,7 @@ void HttpRequest::print(std::ostream& os) const
     os << "Path: " << _path << std::endl;
     os << "Query: " << _query << std::endl;
     os << "Version: " << _version << std::endl;
-    os << "Error Code: " << _errorCode << std::endl;
+    os << "Status Code: " << _statusCode << std::endl;
 
     os << "\nHeaders:" << std::endl;
     if (_headers.empty())
