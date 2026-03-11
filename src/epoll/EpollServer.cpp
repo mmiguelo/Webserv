@@ -138,7 +138,6 @@ void EpollServer::_handleClientData(int fd)
     ssize_t bytesRead = recv(fd, buffer, sizeof(buffer), 0);
     if (bytesRead <= 0)
     {
-        // Client disconnected — but drain send_buf first if we have a response
         if (!data.send_buf.empty())
         {
             struct epoll_event ev;
@@ -158,19 +157,16 @@ void EpollServer::_handleClientData(int fd)
     HttpRequest& request = data.parser.getRequest();
 
     // Handle Expect: 100-continue
-    if (data.parser.getState() == PARSE_BODY_CONTENT_LENGTH || 
-        data.parser.getState() == PARSE_BODY_CHUNKED)
+    if (data.parser.getState() == PARSE_ERROR)
+    {
+        // Error detected (including 413 Payload Too Large) - respond immediately
+        _createResponse(fd, complete, data);
+    }
+    else if (!data.continue_sent && request.hasHeader("expect"))
     {
         std::string expect = request.getHeader("expect");
-        if (!data.continue_sent && expect.find("100-continue") != std::string::npos)
+        if (expect.find("100-continue") != std::string::npos)
         {
-            // Check if we should reject early
-            int statusCode = static_cast<int>(request.getErrorCode());
-            if (statusCode >= 400)
-            {
-                _createResponse(fd, false, data);
-                return;
-            }
             // Send 100 Continue to allow client to send body
             std::string continueResponse = request.getVersion() + " 100 Continue\r\n\r\n";
             send(fd, continueResponse.c_str(), continueResponse.size(), 0);
@@ -178,8 +174,11 @@ void EpollServer::_handleClientData(int fd)
             return; // Wait for body data
         }
     }
-
-    _createResponse(fd, complete, data);
+    else if (complete)
+    {
+        _createResponse(fd, complete, data);
+    }
+    // Otherwise, wait for more data
 }
 
 void EpollServer::_createResponse(int fd, bool complete, ClientData &data)
