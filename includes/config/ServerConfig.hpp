@@ -9,7 +9,7 @@
 class ServerConfig {
 private:
 	std::string _host;							//default "0.0.0.0"
-	int _port; 									//obrigatorio
+	std::vector<int> _ports;						//obrigatorio
 	size_t _client_max_body_size;				//opcional example: client_max_body_size 5M; -> 5 * 1024 * 1024
 	std::string _root;							//obrigatorio
 	std::vector<std::string> _server_name;		//opcional
@@ -23,6 +23,7 @@ public:
 	// Getters
 	const std::string& getHost() const;
 	int getPort() const;
+	std::vector<int> getPorts() const;
 	size_t getClientMaxBodySize() const;
 	const std::string& getRoot() const;
 	const std::vector<std::string>& getServerName() const;

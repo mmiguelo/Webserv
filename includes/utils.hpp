@@ -19,6 +19,7 @@
 #include <sstream>
 #include <vector>
 #include <sstream>
+#include <cerrno>
 
 #include <csignal>
 #include "HttpRequest.hpp"
@@ -35,8 +36,10 @@ namespace utils
     void log_error(const std::string &message);
 }
 
-// http
-std::string toLowerStr(const std::string &str);
-std::string trimWhitespace(const std::string &str);
-HttpMethod stringToMethod(const std::string &method);
-std::string methodToString(HttpMethod method);
+//http
+std::string         toLowerStr(const std::string& str);
+std::string         trimWhitespace(const std::string& str);
+HttpMethod          stringToMethod(const std::string& method);
+std::string         methodToString(HttpMethod method);
+bool                isValidDecimal(const std::string& s);
+bool                isValidHexadecimal(const std::string& s);

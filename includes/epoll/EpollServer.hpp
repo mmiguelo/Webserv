@@ -2,7 +2,6 @@
 
 #include <iostream>
 #include <string>
-#include <set>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <fcntl.h>
@@ -25,6 +24,7 @@ struct ClientData
     int server_fd;
     time_t last_activity;
     HttpParser parser;
+    bool continue_sent;  // Add this flag
 };
 
 class EpollServer
@@ -51,6 +51,6 @@ public:
     EpollServer();
     ~EpollServer();
 
-    void addServer(ServerConfig &config);
+    void addServer(ServerConfig &config, int port);
     void run();
 };

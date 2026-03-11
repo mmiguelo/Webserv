@@ -4,6 +4,7 @@
 *.out
 *.exe
 *.app
+*.sh
 
 webserv
 www/*

@@ -41,20 +41,28 @@ int main(int argc, char **argv)
         std::string content = buffer.str();
 
         std::vector<Token> tokens = Tokenizer::tokenize(content);
-        // for (size_t i = 0; i < tokens.size(); i++)
-        //     debugPrintToken(tokens[i]);
+        /* for (size_t i = 0; i < tokens.size(); i++)
+            debugPrintToken(tokens[i]); */
         ConfigParser parser(tokens);
-        servers = parser.parse();
+        parser.parse(servers);
         Validator::validate(servers);
         std::cout << "\nConfig parsed and validated successfully\n";
 
         // 4️⃣ Print parsed config
-        printServers(servers);
+        //printServers(servers);
 
         EpollServer server;
         std::map<int, ServerConfig>::iterator it;
+        std::cout << servers.size() << " server(s) to add to EpollServer\n";
         for (it = servers.begin(); it != servers.end(); ++it)
-            server.addServer(it->second);
+        {
+            std::vector<int> ports = it->second.getPorts();
+            for (std::vector<int>::const_iterator portIt = ports.begin(); portIt != ports.end(); ++portIt)
+            {
+                std::cout << *portIt << std::endl;
+                server.addServer(it->second, *portIt);
+            }
+        }
         server.run();
     }
     catch (const std::exception &e)

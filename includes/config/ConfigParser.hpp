@@ -48,7 +48,7 @@ private:
 
 public:
 	ConfigParser(const std::vector<Token> &tokens);
-	std::map<int, ServerConfig> parse();
+	void parse(std::map<int, ServerConfig> &servers);
 };
 
 #endif

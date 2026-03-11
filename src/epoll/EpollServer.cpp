@@ -1,5 +1,7 @@
 #include "EpollServer.hpp"
 #include "HttpParser.hpp"
+#include "HttpRequest.hpp"
+#include "HttpResponse.hpp"
 #include <fstream>
 
 EpollServer::EpollServer() : _epollFd(-1)
@@ -52,9 +54,12 @@ int EpollServer::_createAndBindSocket(const std::string &host, int port)
 
     struct sockaddr_in addr;
     std::memset(&addr, 0, sizeof(addr));
+    std::string ip = host;
+    if (ip == "localhost")
+        ip = "127.0.0.1";
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
-    addr.sin_addr.s_addr = inet_addr(host.c_str());
+    addr.sin_addr.s_addr = inet_addr(ip.c_str());
 
     if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
     {
@@ -69,16 +74,16 @@ int EpollServer::_createAndBindSocket(const std::string &host, int port)
     return fd;
 }
 
-void EpollServer::addServer(ServerConfig &config)
+void EpollServer::addServer(ServerConfig &config, int port)
 {
-    int fd = _createAndBindSocket(config.getHost(), config.getPort());
+    int fd = _createAndBindSocket(config.getHost(), port);
     _setNonBlocking(fd);
     _registerToEpoll(fd, EPOLLIN);
     _listenFds.insert(fd);
     _fdToConfig[fd] = &config;
 
     std::ostringstream oss;
-    oss << config.getPort();
+    oss << port;
     utils::log_info("Listening on " + config.getHost() + ":" + oss.str());
 }
 
@@ -101,6 +106,7 @@ void EpollServer::_acceptNewClient(int listenFd)
         ClientData data;
         data.last_activity = time(NULL);
         data.server_fd = listenFd;
+        data.continue_sent = false;  // Add this
         _clients[client_fd] = data;
         std::cout << "New Client fd = " << client_fd << std::endl;
     }
@@ -132,7 +138,6 @@ void EpollServer::_handleClientData(int fd)
     ssize_t bytesRead = recv(fd, buffer, sizeof(buffer), 0);
     if (bytesRead <= 0)
     {
-        // Client disconnected — but drain send_buf first if we have a response
         if (!data.send_buf.empty())
         {
             struct epoll_event ev;
@@ -148,85 +153,64 @@ void EpollServer::_handleClientData(int fd)
     data.last_activity = time(NULL);
 
     std::string newData(buffer, bytesRead);
-    bool complete = data.parser.feed(newData);
+    bool complete = data.parser.feed(newData, *_fdToConfig[data.server_fd]);
+    HttpRequest& request = data.parser.getRequest();
 
-    _createResponse(fd, complete, data);
+    // Handle Expect: 100-continue
+    if (data.parser.getState() == PARSE_ERROR)
+    {
+        // Error detected (including 413 Payload Too Large) - respond immediately
+        _createResponse(fd, complete, data);
+    }
+    else if (!data.continue_sent && request.hasHeader("expect"))
+    {
+        std::string expect = request.getHeader("expect");
+        if (expect.find("100-continue") != std::string::npos)
+        {
+            // Send 100 Continue to allow client to send body
+            std::string continueResponse = request.getVersion() + " 100 Continue\r\n\r\n";
+            send(fd, continueResponse.c_str(), continueResponse.size(), 0);
+            data.continue_sent = true;
+            return; // Wait for body data
+        }
+    }
+    else if (complete)
+    {
+        _createResponse(fd, complete, data);
+    }
+    // Otherwise, wait for more data
 }
 
 void EpollServer::_createResponse(int fd, bool complete, ClientData &data)
 {
-    if (complete)
-    {
-        HttpRequest request = data.parser.getRequest();
+    HttpResponse response;
+    HttpRequest request = data.parser.getRequest();
+    std::string responseStr;
+    int statusCode = static_cast<int>(request.getErrorCode());
 
-        std::string path = request.getPath();
-        if (path == "/")
-            path = "/index.html";
-
-        std::string body;
-        std::string contentType = "text/plain";
-
-        std::string filePath = "www" + path;
-        std::ifstream file(filePath.c_str(), std::ios::binary);
-        if (file.good())
-        {
-            std::ostringstream content;
-            content << file.rdbuf();
-            body = content.str();
-            file.close();
-
-            if (path.find(".bin") != std::string::npos)
-                contentType = "application/octet-stream";
-            else if (path.find(".html") != std::string::npos)
-                contentType = "text/html";
-            else if (path.find(".css") != std::string::npos)
-                contentType = "text/css";
-            else if (path.find(".js") != std::string::npos)
-                contentType = "application/javascript";
-        }
-        else
-        {
-            body = "Request received successfully.\nPath: " + request.getPath();
+    if (data.parser.getState() == PARSE_ERROR)
+        responseStr = response.buildError(statusCode, request);
+    else if (complete) {
+        if (statusCode >= 400)
+            responseStr = response.buildError(statusCode, request);
+        else {
+            // TODO: This will be replaced by actual file serving / CGI output
+            std::string body = "Request received successfully.\nPath: " + request.getPath();
             if (!request.getBody().empty())
                 body += "\nBody: " + request.getBody();
+            response.build(statusCode, body, "text/plain", request.getVersion());
         }
-
-        std::ostringstream oss;
-        oss << request.getVersion() << " " << request.getErrorCode() << " OK\r\n"
-            << "Content-Type: " << contentType << "\r\n"
-            << "Content-Length: " << body.size() << "\r\n"
-            << "Connection: close\r\n"
-            << "\r\n";
-
-        if (request.getMethod() != METHOD_HEAD)
-            oss << body;
-
-        data.send_buf = oss.str();
-
-        struct epoll_event ev;
-        ev.events = EPOLLOUT | EPOLLERR | EPOLLHUP;
-        ev.data.fd = fd;
-        epoll_ctl(_epollFd, EPOLL_CTL_MOD, fd, &ev);
     }
-    else if (data.parser.getState() == PARSE_ERROR)
-    {
-        HttpRequest request = data.parser.getRequest();
+    else
+        responseStr = response.buildError(400, request); // Incomplete request, treat as bad request
+    
+    responseStr = response.serialize(request.getMethod());
+    data.send_buf = responseStr;
 
-        std::string body = "Bad Request";
-        std::ostringstream oss;
-        oss << request.getVersion() << " " << request.getErrorCode() << " OK\r\n"
-            << "Content-Type: text/plain\r\n"
-            << "Content-Length: " << body.size() << "\r\n"
-            << "Connection: close\r\n"
-            << "\r\n"
-            << body;
-        data.send_buf = oss.str();
-
-        struct epoll_event ev;
-        ev.events = EPOLLOUT | EPOLLERR | EPOLLHUP;
-        ev.data.fd = fd;
-        epoll_ctl(_epollFd, EPOLL_CTL_MOD, fd, &ev);
-    }
+    struct epoll_event ev;
+    ev.events = EPOLLOUT | EPOLLERR | EPOLLHUP;
+    ev.data.fd = fd;
+    epoll_ctl(_epollFd, EPOLL_CTL_MOD, fd, &ev);
 }
 
 void EpollServer::_closeClient(int fd)
@@ -266,6 +250,7 @@ void EpollServer::_handleClientResponse(int fd)
 
 void EpollServer::run()
 {
+    std::cout << _fdToConfig.size() << " server(s) configured, waiting for connections..." << std::endl;
     while (true)
     {
         int n = epoll_wait(_epollFd, _events, MAX_EVENTS, 1000);
@@ -278,7 +263,6 @@ void EpollServer::run()
         }
 
         _checkTimeout();
-
         for (int i = 0; i < n; i++)
         {
             int fd = _events[i].data.fd;
@@ -286,6 +270,7 @@ void EpollServer::run()
 
             if (_listenFds.count(fd)) // it's a listen socket → accept
             {
+                std::cout << _listenFds.size() << " listen sockets, accepting on fd " << fd << std::endl;
                 _acceptNewClient(fd);
             }
             else if (_clients.count(fd)) // it's a client socket → handle
@@ -297,8 +282,8 @@ void EpollServer::run()
                     if (ev & EPOLLIN)
                         _handleClientData(fd);
                     if (_clients.count(fd) && (ev & EPOLLOUT))
-                        _handleClientResponse(fd);
-                }
+
+                        _handleClientResponse(fd);                }
             }
         }
     }

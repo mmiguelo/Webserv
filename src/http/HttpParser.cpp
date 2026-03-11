@@ -27,10 +27,39 @@ HttpParser &HttpParser::operator=(const HttpParser &other)
     return *this;
 }
 
-// Feed raw data into the parser. Returns true when request is COMPLETE.
-bool HttpParser::feed(const std::string &data)
+void HttpParser::reset()
 {
+    _state = PARSE_REQUEST_LINE;
+    _buffer.clear();
+    _request.reset();
+    _contentLength = 0;
+    _headerSize = 0;
+}
+
+void HttpParser::setServerConfig(const ServerConfig& serverConfig) {
+    _serverConfig = const_cast<ServerConfig*>(&serverConfig);
+}
+
+ServerConfig& HttpParser::getServerConfig() const {
+    return *_serverConfig;
+}
+
+ParserState HttpParser::getState() const {
+    return _state;
+}
+
+HttpRequest& HttpParser::getRequest() {
+    return _request;
+}
+
+const HttpRequest& HttpParser::getRequest() const {
+    return _request;
+}
+
+// Feed raw data into the parser. Returns true ONLY when request is COMPLETE.
+bool HttpParser::feed(const std::string& data, const ServerConfig& serverConfig) {
     _buffer.append(data);
+    setServerConfig(serverConfig);
     while (true)
     {
         if (_state == PARSE_REQUEST_LINE)
@@ -66,13 +95,13 @@ bool HttpParser::_parseRequestLine()
         return false; // incomplete: wait for more data
 
     std::string requestLine = _buffer.substr(0, pos);
-    _buffer.erase(0, pos + 2);
+    _buffer.erase(0, pos + 2); //clean \r\n
 
     std::vector<std::string> parts;
     std::stringstream ss(requestLine);
     std::string token;
 
-    // Split by spaces: METHOD URI VERSION
+    // Split by spaces into METHOD URI VERSION
     while (std::getline(ss, token, ' '))
         parts.push_back(token);
 
@@ -156,45 +185,59 @@ bool HttpParser::_parseHeaders()
                 return false;
             }
 
+            // Check Expect: 100-continue BEFORE checking content-length
+            std::string expect = _request.getHeader("expect");
+            bool needsContinue = (expect.find("100-continue") != std::string::npos);
+
+            std::string cl = _request.getHeader("content-length");
+            if (!cl.empty()) {
+                if (!isValidDecimal(cl)) {
+                    _request.setErrorCode(STATUS_BAD_REQUEST);
+                    _state = PARSE_ERROR;
+                    return false;
+                }
+
+                _contentLength = static_cast<size_t>(std::strtol(cl.c_str(), NULL, 10));
+                size_t client_max_body_size = _serverConfig->getClientMaxBodySize();
+                
+                if (_contentLength > client_max_body_size) {
+                    _request.setErrorCode(STATUS_PAYLOAD_TOO_LARGE);
+                    _state = PARSE_ERROR;
+                    return false;
+                }
+
+                if (_contentLength == 0) {
+                    _state = PARSE_COMPLETE;
+                    return true;
+                }
+
+                // If client expects 100-continue, signal that we need to send it
+                if (needsContinue) {
+                    _state = PARSE_EXPECT_CONTINUE;
+                    return true;  // Let EpollServer send "100 Continue"
+                }
+
+                _state = PARSE_BODY_CONTENT_LENGTH;
+                return true;
+            }
+
             std::string te = _request.getHeader("transfer-encoding");
             if (te.find("chunked") != std::string::npos)
             {
+                if (needsContinue) {
+                    _state = PARSE_EXPECT_CONTINUE;
+                    return true;
+                }
                 _state = PARSE_BODY_CHUNKED;
                 return true;
             }
 
-            std::string cl = _request.getHeader("content-length");
-            if (!cl.empty())
-            {
-                char *endptr;
-                long len = std::strtol(cl.c_str(), &endptr, 10);
-                if (*endptr != '\0')
-                {
-                    _request.setErrorCode(STATUS_BAD_REQUEST);
-                    _state = PARSE_ERROR;
-                    return false;
-                }
-                if (len < 0)
-                {
-                    _request.setErrorCode(STATUS_BAD_REQUEST);
-                    _state = PARSE_ERROR;
-                    return false;
-                }
-                _contentLength = static_cast<size_t>(len);
-                if (_contentLength == 0)
-                {
-                    _state = PARSE_COMPLETE;
-                    return true; // no need to reed more, since there will be no body
-                }
-                _state = PARSE_BODY_CONTENT_LENGTH;
-                return true;
-            }
             _state = PARSE_COMPLETE;
             return true;
         }
 
         std::string line = _buffer.substr(0, pos);
-        _buffer.erase(0, pos + 2); // remove /r/n from the buffer
+        _buffer.erase(0, pos + 2);
 
         std::string::size_type colon = line.find(':');
         if (colon == std::string::npos)
@@ -208,45 +251,70 @@ bool HttpParser::_parseHeaders()
         std::string value = line.substr(colon + 1);
         _request.setHeader(key, value); // it trims WS in this function
     }
-
-    std::map<int, ServerConfig> servers;
 }
 
-bool HttpParser::_parseBodyContentLength()
-{
-    std::cout << "Parse body content length" << std::endl;
-    std::cout << _buffer << std::endl;
+size_t HttpParser::getHeaderSize() const {
+    return _headerSize;
+}
+
+// body when header has content-length
+bool HttpParser::_parseBodyContentLength() {
+    if (_buffer.size() < _contentLength)
+        return false; // wait for more data
+
+    //this covers both buffer > contenlength and ==
+    _request.setBody(_buffer.substr(0, _contentLength));
+    _buffer.erase(0, _contentLength);
     _state = PARSE_COMPLETE;
     return true;
-} // TASK 2
-
-bool HttpParser::_parseBodyChunked()
-{
-    std::cout << "Parse body chunked" << std::endl;
-    _state = PARSE_COMPLETE;
-    return true;
-} // TASK 2
-
-void HttpParser::reset()
-{
-    _state = PARSE_REQUEST_LINE;
-    _buffer.clear();
-    _request.reset();
-    _contentLength = 0;
-    _headerSize = 0;
 }
 
-ParserState HttpParser::getState() const
-{
-    return _state;
-}
+/* example of body with transfer-encoding for <Hello World!!!> :
+4\r\n <- size of the next chunked message you receive
+Hell\r\n
+A\r\n  <- size is hexadecimal
+o World!!!\r\n
+0\r\n <- it means message ended
+\r\n
+*/
+bool HttpParser::_parseBodyChunked() {
+    while (true) {
+        //find first chunk line
+        std::string::size_type pos = _buffer.find("\r\n");
+        if (pos == std::string::npos)
+            return false;
 
-HttpRequest &HttpParser::getRequest()
-{
-    return _request;
-}
+        std::string sizeStr = _buffer.substr(0, pos);
+        if (!isValidHexadecimal(sizeStr)) {
+            _request.setErrorCode(STATUS_BAD_REQUEST);
+            _state = PARSE_ERROR;
+            return false;
+        }
+        unsigned long chunkSize = std::strtoul(sizeStr.c_str(), NULL, 16);
+        size_t totalBodySize = _request.getBody().size() + chunkSize;
+        size_t client_max_body_size = _serverConfig->getClientMaxBodySize();
 
-const HttpRequest &HttpParser::getRequest() const
-{
-    return _request;
+        if (totalBodySize > client_max_body_size) {
+            _request.setErrorCode(STATUS_PAYLOAD_TOO_LARGE);
+            _state = PARSE_ERROR;
+            return false;
+        }
+        //Final chunk: "0\r\n\r\n"
+        if (chunkSize == 0) {
+            if (_buffer.size() < pos + 4)
+                return false;
+            _buffer.erase(0, pos + 4);
+            _state = PARSE_COMPLETE;
+            return true;
+        }
+
+        // needed: size-line + \r\n (2) + chunk-data + \r\n (2)
+        size_t needed = pos + 2 + chunkSize + 2;
+        if (_buffer.size() < needed) //information missing
+            return false;
+
+        std::string chunk = _buffer.substr(pos + 2, chunkSize);
+        _request.setBody(_request.getBody() + chunk);
+        _buffer.erase(0, needed);
+    }
 }

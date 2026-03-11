@@ -36,6 +36,12 @@ void ConfigParser::parseListen(ServerConfig& serverBlock) {
 	int portNum = std::atoi(port.c_str()); //convertemos a string para int
 	serverBlock.setHost(host); //atribuimos o valor do host ao serverBlock
 	serverBlock.setPort(portNum); //atribuimos o valor da porta ao serverBlock
+	std::cout << "Current ports in server block: ";
+	std::vector<int> ports = serverBlock.getPorts();
+	for (size_t i = 0; i < ports.size(); i++) {
+		std::cout << ports[i] << " ";
+	}
+	std::cout << std::endl;
 	expect(SEMICOLON); //verificamos se o próximo token é um ponto e vírgula
 }
 

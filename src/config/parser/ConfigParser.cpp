@@ -35,8 +35,7 @@ void ConfigParser::expect(TokenType type) {
 	next();
 }
 
-std::map<int, ServerConfig> ConfigParser::parse() {
-	std::map<int, ServerConfig> servers;
+void ConfigParser::parse(std::map<int, ServerConfig> &servers) {
 	while (!isEnd())
 	{
 		ServerConfig config = parseServerBlock();
@@ -44,7 +43,6 @@ std::map<int, ServerConfig> ConfigParser::parse() {
 		if (!servers.insert(std::make_pair(port, config)).second)
 			throw parseError("Duplicate server block with port: " + numberToString(port));
 	}
-	return servers;
 }
 
 std::runtime_error ConfigParser::parseError(const std::string &message) const {
