@@ -54,9 +54,12 @@ int EpollServer::_createAndBindSocket(const std::string &host, int port)
 
     struct sockaddr_in addr;
     std::memset(&addr, 0, sizeof(addr));
+    std::string ip = host;
+    if (ip == "localhost")
+        ip = "127.0.0.1";
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
-    addr.sin_addr.s_addr = inet_addr(host.c_str());
+    addr.sin_addr.s_addr = inet_addr(ip.c_str());
 
     if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
     {
