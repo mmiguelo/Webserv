@@ -63,19 +63,54 @@ void HttpResponse::build(int statusCode, const std::string& body, const std::str
     _version = version;
 }
 
+std::string HttpResponse::replaceAll(std::string str, const std::string& from, const std::string& to) {
+    size_t pos = 0;
+    while ((pos = str.find(from, pos)) != std::string::npos) {
+        str.replace(pos, from.length(), to);
+        pos += to.length();
+    }
+    return str;
+}
+
+std::string HttpResponse::readFile(const std::string& path) const {
+    std::ifstream file(path.c_str());
+    if (!file.is_open()) {
+        return "";
+    }
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    return buffer.str();
+}
+
 std::string HttpResponse::buildError(int statusCode, const HttpRequest& request) {
     _version = request.getVersion().empty() ? "HTTP/1.1" : request.getVersion();
     _statusCode = statusCode;
-    std::string ct = request.getHeader("content-type");
-    _contentType = ct.empty() ? "text/html" : ct;
-    std::ostringstream oss;
-    oss << "<!DOCTYPE html>\n<html>\n<head><title>"
-        << statusCode << " " << getStatusMessage(statusCode)
-        << "</title></head>\n<body>\n<h1>"
-        << statusCode << " " << getStatusMessage(statusCode)
-        << "</h1>\n</body>\n</html>";
-    _body = oss.str();
-    return _body;
+    _contentType = "text/html";
+
+    // Convert status code to string
+    std::ostringstream codeStr;
+    codeStr << statusCode;
+
+    // Try to read template file
+    std::string templateHtml = readFile("www/errors/default.html");
+
+    if (templateHtml.empty()) {
+        // Fallback: generate simple HTML if template not found
+        std::ostringstream oss;
+        oss << "<!DOCTYPE html>\n<html>\n<head><title>"
+            << statusCode << " " << getStatusMessage(statusCode)
+            << "</title></head>\n<body>\n<h1>"
+            << statusCode << " " << getStatusMessage(statusCode)
+            << "</h1>\n</body>\n</html>";
+        _body = oss.str();
+    } else {
+        // Replace placeholders with actual values
+        templateHtml = replaceAll(templateHtml, "{{ERROR_CODE}}", codeStr.str());
+        templateHtml = replaceAll(templateHtml, "{{ERROR_MESSAGE}}", getStatusMessage(statusCode));
+        _body = templateHtml;
+    }
+
+    return serialize(request.getMethod());
 }
 
 std::string HttpResponse::serialize(HttpMethod method) const {

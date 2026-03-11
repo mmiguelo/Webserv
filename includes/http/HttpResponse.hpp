@@ -6,6 +6,7 @@
 #include <iostream>
 #include <sstream>
 #include <ctime>
+#include <fstream>
 
 class HttpResponse {
     private:
@@ -16,6 +17,10 @@ class HttpResponse {
         std::string                         _version;
 
         static void initCodeMsg();
+        std::string readFile(const std::string& path) const;
+        static std::string replaceAll(std::string str, const std::string& from, const std::string& to);
+        std::string httpDate() const;
+
     public:
         HttpResponse();
         ~HttpResponse();
@@ -27,8 +32,7 @@ class HttpResponse {
         std::string serialize(HttpMethod method) const;
 
         const std::string& getStatusMessage(int code) const;
-        std::string httpDate() const;
+        std::string getVersion() const;
 
         bool hasBody() const;
-        std::string getVersion() const;
 };
