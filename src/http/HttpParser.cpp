@@ -185,12 +185,9 @@ bool HttpParser::_parseHeaders()
                 return false;
             }
 
-            std::string te = _request.getHeader("transfer-encoding");
-            if (te.find("chunked") != std::string::npos)
-            {
-                _state = PARSE_BODY_CHUNKED;
-                return true;
-            }
+            // Check Expect: 100-continue BEFORE checking content-length
+            std::string expect = _request.getHeader("expect");
+            bool needsContinue = (expect.find("100-continue") != std::string::npos);
 
             std::string cl = _request.getHeader("content-length");
             if (!cl.empty()) {
@@ -202,7 +199,7 @@ bool HttpParser::_parseHeaders()
 
                 _contentLength = static_cast<size_t>(std::strtol(cl.c_str(), NULL, 10));
                 size_t client_max_body_size = _serverConfig->getClientMaxBodySize();
-
+                
                 if (_contentLength > client_max_body_size) {
                     _request.setErrorCode(STATUS_PAYLOAD_TOO_LARGE);
                     _state = PARSE_ERROR;
@@ -211,11 +208,30 @@ bool HttpParser::_parseHeaders()
 
                 if (_contentLength == 0) {
                     _state = PARSE_COMPLETE;
-                    return true; //no need to reed more, since there will be no body
+                    return true;
                 }
+
+                // If client expects 100-continue, signal that we need to send it
+                if (needsContinue) {
+                    _state = PARSE_EXPECT_CONTINUE;
+                    return true;  // Let EpollServer send "100 Continue"
+                }
+
                 _state = PARSE_BODY_CONTENT_LENGTH;
                 return true;
             }
+
+            std::string te = _request.getHeader("transfer-encoding");
+            if (te.find("chunked") != std::string::npos)
+            {
+                if (needsContinue) {
+                    _state = PARSE_EXPECT_CONTINUE;
+                    return true;
+                }
+                _state = PARSE_BODY_CHUNKED;
+                return true;
+            }
+
             _state = PARSE_COMPLETE;
             return true;
         }
@@ -235,8 +251,6 @@ bool HttpParser::_parseHeaders()
         std::string value = line.substr(colon + 1);
         _request.setHeader(key, value); // it trims WS in this function
     }
-
-    std::map<int, ServerConfig> servers;
 }
 
 size_t HttpParser::getHeaderSize() const {

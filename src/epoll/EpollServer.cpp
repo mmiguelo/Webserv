@@ -103,6 +103,7 @@ void EpollServer::_acceptNewClient(int listenFd)
         ClientData data;
         data.last_activity = time(NULL);
         data.server_fd = listenFd;
+        data.continue_sent = false;  // Add this
         _clients[client_fd] = data;
         std::cout << "New Client fd = " << client_fd << std::endl;
     }
@@ -151,6 +152,29 @@ void EpollServer::_handleClientData(int fd)
 
     std::string newData(buffer, bytesRead);
     bool complete = data.parser.feed(newData, *_fdToConfig[data.server_fd]);
+    HttpRequest& request = data.parser.getRequest();
+
+    // Handle Expect: 100-continue
+    if (data.parser.getState() == PARSE_BODY_CONTENT_LENGTH || 
+        data.parser.getState() == PARSE_BODY_CHUNKED)
+    {
+        std::string expect = request.getHeader("expect");
+        if (!data.continue_sent && expect.find("100-continue") != std::string::npos)
+        {
+            // Check if we should reject early
+            int statusCode = static_cast<int>(request.getErrorCode());
+            if (statusCode >= 400)
+            {
+                _createResponse(fd, false, data);
+                return;
+            }
+            // Send 100 Continue to allow client to send body
+            std::string continueResponse = request.getVersion() + " 100 Continue\r\n\r\n";
+            send(fd, continueResponse.c_str(), continueResponse.size(), 0);
+            data.continue_sent = true;
+            return; // Wait for body data
+        }
+    }
 
     _createResponse(fd, complete, data);
 }
@@ -162,30 +186,23 @@ void EpollServer::_createResponse(int fd, bool complete, ClientData &data)
     std::string responseStr;
     int statusCode = static_cast<int>(request.getErrorCode());
 
-    if (data.parser.getState() == PARSE_ERROR) {
-        if (statusCode == STATUS_METHOD_NOT_ALLOWED)
-            responseStr = response.buildError(405, request);
-        else if (statusCode == STATUS_REQUEST_HEADER_TOO_LARGE)
-            responseStr = response.buildError(431, request);
-        else
-            responseStr = response.buildError(400, request);
-    }
+    if (data.parser.getState() == PARSE_ERROR)
+        responseStr = response.buildError(statusCode, request);
     else if (complete) {
-        if (statusCode >= 400) {
+        if (statusCode >= 400)
             responseStr = response.buildError(statusCode, request);
-        } 
         else {
             // TODO: This will be replaced by actual file serving / CGI output
             std::string body = "Request received successfully.\nPath: " + request.getPath();
             if (!request.getBody().empty())
                 body += "\nBody: " + request.getBody();
             response.build(statusCode, body, "text/plain", request.getVersion());
-            responseStr = response.serialize(request.getMethod());
         }
     }
     else
         responseStr = response.buildError(400, request); // Incomplete request, treat as bad request
     
+    responseStr = response.serialize(request.getMethod());
     data.send_buf = responseStr;
 
     struct epoll_event ev;
@@ -263,8 +280,8 @@ void EpollServer::run()
                     if (ev & EPOLLIN)
                         _handleClientData(fd);
                     if (_clients.count(fd) && (ev & EPOLLOUT))
-                        _handleClientResponse(fd);
-                }
+
+                        _handleClientResponse(fd);                }
             }
         }
     }

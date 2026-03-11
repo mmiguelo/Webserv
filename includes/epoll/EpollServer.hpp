@@ -24,6 +24,7 @@ struct ClientData
     int server_fd;
     time_t last_activity;
     HttpParser parser;
+    bool continue_sent;  // Add this flag
 };
 
 class EpollServer
