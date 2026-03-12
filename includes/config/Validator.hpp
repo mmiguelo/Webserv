@@ -20,6 +20,7 @@ private:
 	static void validateErrorPages(const ServerConfig &server);
 	static void validateServerNames(const ServerConfig &server);
 	static void validateDuplicateLocations(const std::vector<LocationConfig>& locations);
+	static void checkDuplicatePorts(const std::map<int, std::vector<ServerConfig> > &servers);
 
 	static void validateLocationPath(const LocationConfig &location);
 	static void validateLocationMethods(const LocationConfig &location);
