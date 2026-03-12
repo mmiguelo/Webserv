@@ -13,6 +13,8 @@ EpollServer::EpollServer() : _epollFd(-1)
 
 EpollServer::~EpollServer()
 {
+    for (std::map<int, ClientData>::iterator it = _clients.begin(); it != _clients.end(); ++it)
+        close(it->first);
     for (std::set<int>::iterator it = _listenFds.begin(); it != _listenFds.end(); ++it)
         close(*it);
     if (_epollFd != -1)
@@ -52,20 +54,36 @@ int EpollServer::_createAndBindSocket(const std::string &host, int port)
         throw std::runtime_error("setsockopt failed");
     }
 
-    struct sockaddr_in addr;
-    std::memset(&addr, 0, sizeof(addr));
-    std::string ip = host;
-    if (ip == "localhost")
-        ip = "127.0.0.1";
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
-    addr.sin_addr.s_addr = inet_addr(ip.c_str());
+    std::ostringstream oss;
+    oss << port;
 
-    if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
+    struct addrinfo hints;
+    std::memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+
+    struct addrinfo *res = NULL;
+    const char *node = host.empty() ? NULL : host.c_str();
+
+    int ret = getaddrinfo(node, oss.str().c_str(), &hints, &res);
+    if (ret != 0)
     {
         close(fd);
+        throw std::runtime_error(std::string("getaddrinfo failed: ") + gai_strerror(ret));
+    }
+
+    if (bind(fd, res->ai_addr, res->ai_addrlen) == -1)
+    {
+        freeaddrinfo(res);
+        close(fd);
+        if (errno == EADDRINUSE)
+            throw std::runtime_error("bind failed: EADDRINUSE on " + host + ":" + oss.str());
         throw std::runtime_error("bind failed");
     }
+
+    freeaddrinfo(res);
+
     if (listen(fd, SOMAXCONN) == -1)
     {
         close(fd);
@@ -106,7 +124,8 @@ void EpollServer::_acceptNewClient(int listenFd)
         ClientData data;
         data.last_activity = time(NULL);
         data.server_fd = listenFd;
-        data.continue_sent = false;  // Add this
+        data.server_config = _fdToConfig[listenFd];
+        data.continue_sent = false;
         _clients[client_fd] = data;
         std::cout << "New Client fd = " << client_fd << std::endl;
     }
@@ -153,8 +172,8 @@ void EpollServer::_handleClientData(int fd)
     data.last_activity = time(NULL);
 
     std::string newData(buffer, bytesRead);
-    bool complete = data.parser.feed(newData, *_fdToConfig[data.server_fd]);
-    HttpRequest& request = data.parser.getRequest();
+    bool complete = data.parser.feed(newData, *data.server_config);
+    HttpRequest &request = data.parser.getRequest();
 
     // Handle Expect: 100-continue
     if (data.parser.getState() == PARSE_ERROR)
@@ -190,10 +209,12 @@ void EpollServer::_createResponse(int fd, bool complete, ClientData &data)
 
     if (data.parser.getState() == PARSE_ERROR)
         responseStr = response.buildError(statusCode, request);
-    else if (complete) {
+    else if (complete)
+    {
         if (statusCode >= 400)
             responseStr = response.buildError(statusCode, request);
-        else {
+        else
+        {
             // TODO: This will be replaced by actual file serving / CGI output
             std::string body = "Request received successfully.\nPath: " + request.getPath();
             if (!request.getBody().empty())
@@ -203,7 +224,7 @@ void EpollServer::_createResponse(int fd, bool complete, ClientData &data)
     }
     else
         responseStr = response.buildError(400, request); // Incomplete request, treat as bad request
-    
+
     responseStr = response.serialize(request.getMethod());
     data.send_buf = responseStr;
 
@@ -283,7 +304,8 @@ void EpollServer::run()
                         _handleClientData(fd);
                     if (_clients.count(fd) && (ev & EPOLLOUT))
 
-                        _handleClientResponse(fd);                }
+                        _handleClientResponse(fd);
+                }
             }
         }
     }

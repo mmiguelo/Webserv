@@ -6,6 +6,8 @@
 #include <sys/socket.h>
 #include <fcntl.h>
 #include <arpa/inet.h>
+#include <netdb.h>
+#include <fstream>
 #include <cstring>
 #include <cerrno>
 #include <unistd.h>
@@ -22,9 +24,10 @@ struct ClientData
     std::string recv_buf;
     std::string send_buf;
     int server_fd;
+    ServerConfig *server_config;
     time_t last_activity;
     HttpParser parser;
-    bool continue_sent;  // Add this flag
+    bool continue_sent;
 };
 
 class EpollServer
