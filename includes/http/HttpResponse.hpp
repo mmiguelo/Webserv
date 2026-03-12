@@ -1,6 +1,7 @@
 #pragma once
 
 #include "HttpRequest.hpp"
+#include "ServerConfig.hpp"
 #include <string>
 #include <map>
 #include <iostream>
@@ -17,9 +18,12 @@ class HttpResponse {
         std::string                         _version;
 
         static void initCodeMsg();
-        std::string readFile(const std::string& path) const;
+        std::string _readFile(const std::string& path) const;
         static std::string replaceAll(std::string str, const std::string& from, const std::string& to);
         std::string httpDate() const;
+        static std::string _getMimeType(const std::string& path);
+        static bool _fileExists(const std::string& path);
+        std::string _getErrorPage(int code, const ServerConfig* config);
 
     public:
         HttpResponse();
@@ -29,6 +33,7 @@ class HttpResponse {
 
         void build(int statusCode, const std::string& body, const std::string& contentType, const std::string& version);
         std::string buildError(int statusCode, const HttpRequest& request);
+        std::string buildFromFile(const HttpRequest& request, const std::string& root);
         std::string serialize(HttpMethod method) const;
 
         const std::string& getStatusMessage(int code) const;

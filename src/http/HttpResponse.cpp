@@ -56,6 +56,36 @@ HttpResponse& HttpResponse::operator=(const HttpResponse& other) {
     return *this;
 }
 
+std::string HttpResponse::_getMimeType(const std::string& path)
+{
+    size_t dot = path.rfind('.');
+    if (dot == std::string::npos)
+        return "application/octet-stream";
+    
+    std::string ext = path.substr(dot);
+    if (ext == ".html" || ext == ".htm") return "text/html";
+    if (ext == ".css") return "text/css";
+    if (ext == ".js") return "application/javascript";
+    if (ext == ".json") return "application/json";
+    if (ext == ".png") return "image/png";
+    if (ext == ".jpg" || ext == ".jpeg") return "image/jpeg";
+    if (ext == ".gif") return "image/gif";
+    if (ext == ".svg") return "image/svg+xml";
+    if (ext == ".ico") return "image/x-icon";
+    if (ext == ".txt") return "text/plain";
+    if (ext == ".xml") return "application/xml";
+    if (ext == ".pdf") return "application/pdf";
+    if (ext == ".mp4") return "video/mp4";
+    return "application/octet-stream";
+}
+
+bool HttpResponse::_fileExists(const std::string& path)
+{
+    std::cout << "Checking file existence: " << path << std::endl;
+    std::ifstream file(path.c_str());
+    return file.good();
+}
+
 void HttpResponse::build(int statusCode, const std::string& body, const std::string& contentType, const std::string& version) {
     _statusCode = statusCode;
     _body = body;
@@ -72,14 +102,49 @@ std::string HttpResponse::replaceAll(std::string str, const std::string& from, c
     return str;
 }
 
-std::string HttpResponse::readFile(const std::string& path) const {
+std::string HttpResponse::_readFile(const std::string& path) const {
     std::ifstream file(path.c_str());
-    if (!file.is_open()) {
+    if (!file.is_open())
         return "";
-    }
+
     std::stringstream buffer;
     buffer << file.rdbuf();
     return buffer.str();
+}
+
+std::string HttpResponse::buildFromFile(const HttpRequest& request, const std::string& root) {
+
+    _version = request.getVersion();
+    if (_version.empty())
+        _version = "HTTP/1.1";
+
+    std::string requestPath = request.getPath();
+    std::cout << "Requested path: " << requestPath << std::endl;
+    std::string filePath = root + requestPath;
+    std::cout << "Constructed file path: " << filePath << std::endl;
+
+    // If path ends with /, try to serve index.html
+    if (!filePath.empty() && filePath[filePath.size() - 1] == '/')
+        filePath += "index.html";
+    // If path is a directory without trailing slash, try index.html
+    else if (_fileExists(filePath + "/index.html"))
+        filePath += "/index.html";
+
+    std::cout << "Final file path: " << filePath << std::endl;
+
+    // Check if file exists
+    if (_fileExists(filePath)) {
+        std::cout << "Serving file: " << filePath << std::endl;
+        std::string body = _readFile(filePath);
+        _statusCode = 200;
+        _body = body;
+        _contentType = _getMimeType(filePath);
+        return serialize(request.getMethod());
+    }
+    else {
+        std::cout << "File not found: " << filePath << std::endl;
+        return buildError(404, request);
+    }
 }
 
 std::string HttpResponse::buildError(int statusCode, const HttpRequest& request) {
@@ -92,10 +157,10 @@ std::string HttpResponse::buildError(int statusCode, const HttpRequest& request)
     codeStr << statusCode;
 
     // Try to read template file
-    std::string templateHtml = readFile("www/errors/default.html");
+    std::string templateHtml = _readFile("www/html/errors/default.html");
 
     if (templateHtml.empty()) {
-        // Fallback: generate simple HTML if template not found
+        // Protecao caso alguem apague a pasta? nao sei se isto é necessario, mas é melhor do que retornar uma resposta vazia
         std::ostringstream oss;
         oss << "<!DOCTYPE html>\n<html>\n<head><title>"
             << statusCode << " " << getStatusMessage(statusCode)
@@ -103,13 +168,13 @@ std::string HttpResponse::buildError(int statusCode, const HttpRequest& request)
             << statusCode << " " << getStatusMessage(statusCode)
             << "</h1>\n</body>\n</html>";
         _body = oss.str();
-    } else {
-        // Replace placeholders with actual values
+    }
+    else {
+        // Replace variables with actual values
         templateHtml = replaceAll(templateHtml, "{{ERROR_CODE}}", codeStr.str());
         templateHtml = replaceAll(templateHtml, "{{ERROR_MESSAGE}}", getStatusMessage(statusCode));
         _body = templateHtml;
     }
-
     return serialize(request.getMethod());
 }
 

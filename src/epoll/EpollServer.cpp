@@ -3,6 +3,7 @@
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
 #include <fstream>
+#include <sstream>
 
 EpollServer::EpollServer() : _epollFd(-1)
 {
@@ -194,17 +195,19 @@ void EpollServer::_createResponse(int fd, bool complete, ClientData &data)
         if (statusCode >= 400)
             responseStr = response.buildError(statusCode, request);
         else {
-            // TODO: This will be replaced by actual file serving / CGI output
-            std::string body = "Request received successfully.\nPath: " + request.getPath();
-            if (!request.getBody().empty())
-                body += "\nBody: " + request.getBody();
-            response.build(statusCode, body, "text/plain", request.getVersion());
+            // Get the root directory from config
+            ServerConfig* config = _fdToConfig[data.server_fd];
+            std::string root = config->getRoot();
+                        
+            // Let HttpResponse handle file serving and 404
+            responseStr = response.buildFromFile(request, root);
         }
     }
     else
         responseStr = response.buildError(400, request); // Incomplete request, treat as bad request
     
-    responseStr = response.serialize(request.getMethod());
+    if (responseStr.empty())
+        responseStr = response.serialize(request.getMethod());
     data.send_buf = responseStr;
 
     struct epoll_event ev;

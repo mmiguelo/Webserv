@@ -1,4 +1,5 @@
 #include "config/ServerConfig.hpp"
+#include "config/UtilsConfig.hpp"
 #include <algorithm>
 
 ServerConfig::ServerConfig() : _host("0.0.0.0"), _client_max_body_size(1024 * 1024) {
@@ -67,7 +68,7 @@ void ServerConfig::setClientMaxBodySize(size_t size) {
 }
 
 void ServerConfig::setRoot(const std::string& root) {
-	_root = root;
+	_root = toAbsolutePath(root);
 }
 
 void ServerConfig::addServerName(const std::string& name) {

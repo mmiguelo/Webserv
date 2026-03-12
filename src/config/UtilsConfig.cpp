@@ -1,6 +1,8 @@
 #include "config/Token.hpp"
 #include "config/UtilsConfig.hpp"
 #include <iostream>
+#include <unistd.h>
+#include <climits>
 
 
 //####------DEBUG------####
@@ -38,4 +40,17 @@ bool isNumber(const std::string& str) {
 			return false;
 	}
 	return true;
+}
+
+std::string toAbsolutePath(const std::string& path) {
+	if (path.empty())
+		return path;
+	// Already absolute
+	if (path[0] == '/')
+		return path;
+	// Convert relative to absolute
+	char cwd[PATH_MAX];
+	if (getcwd(cwd, sizeof(cwd)) == NULL)
+		return path; // fallback to original if getcwd fails
+	return (std::string(cwd) + "/" + path);
 }
