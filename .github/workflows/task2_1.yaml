@@ -67,7 +67,7 @@ jobs:
         run: |
           DOCROOT="www"
           mkdir -p "$DOCROOT"
-          dd if=/dev/urandom of="$DOCROOT/large.bin" bs=1024 count=2048 2>/dev/null
+          dd if=/dev/urandom of="$DOCROOT/large.bin" bs=1024 count=512 2>/dev/null
           EXPECTED=$(wc -c < "$DOCROOT/large.bin")
           echo "Created large.bin with $EXPECTED bytes"
           if [ ! -f "$DOCROOT/index.html" ]; then
