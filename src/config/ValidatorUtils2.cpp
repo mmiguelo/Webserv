@@ -5,9 +5,11 @@
 void Validator::validateLocationPath(const LocationConfig &location) {
 	if (location.path.empty())
 		throw std::runtime_error("Location path is required.");
-	//normalize path 
 	if (location.path[0] != '/')
 		throw std::runtime_error("Location path must start with '/'.");
+	if (location.path.find(' ') != std::string::npos)
+		throw std::runtime_error("Location path must not contain spaces.");
+
 }
 
 void Validator::validateLocationMethods(const LocationConfig &location)
@@ -71,11 +73,13 @@ void Validator::validateLocationRedirect(const LocationConfig &location)
 		return;
 	if (location.redirect_code < 100 || location.redirect_code > 599)
 		throw std::runtime_error("Invalid redirect code in location block.");
-	if((location.redirect_code == 301 ||
-	   location.redirect_code == 302 ||
-	   location.redirect_code == 303 ||
-	   location.redirect_code == 307 ||
-	   location.redirect_code == 308)
-	   && location.redirect_url.empty())
-	   throw std::runtime_error("Redirect URL must start with '/'.");
+	if ((location.redirect_code == 301 || location.redirect_code == 302 ||
+         location.redirect_code == 303 || location.redirect_code == 307 ||
+         location.redirect_code == 308) && location.redirect_url.empty()) {
+        throw std::runtime_error("Redirect URL is required for redirect codes 301, 302, 303, 307 and 308.");
+    }
+	if (!location.redirect_url.empty()) {
+		if (location.redirect_url[0] != '/' && location.redirect_url.find("http://") != 0 && location.redirect_url.find("https://") != 0)
+			throw std::runtime_error("Redirect URL must be an absolute path or start with http:// or https://.");
+	}
 }

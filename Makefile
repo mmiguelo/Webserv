@@ -57,6 +57,13 @@ SRC	+=	$(EPOLL)
 SRC	+=	$(FILE_CONFIG)
 SRC +=	$(FILE_PARSE)
 
+# Parser-only sources (no epoll)
+SRC_PARSER = $(GENERAL)
+SRC_PARSER += $(FILE_CONFIG)
+SRC_PARSER += $(FILE_PARSE)
+
+OBJ_PARSER = $(SRC_PARSER:%.cpp=$(OBJ_DIR)/%.o)
+
 OBJ			= $(SRC:%.cpp=$(OBJ_DIR)/%.o)
 
 #SRC_BONUS	= $(SRC)
@@ -78,11 +85,15 @@ $(OBJ_DIR)/%.o: %.cpp | $(OBJ_DIR)
 $(OBJ_DIR):
 	@mkdir -p $(OBJ_DIR)
 
+parser_test: $(OBJ_PARSER)
+	$(CXX) $(CXXFLAGS) $(OBJ_PARSER) -o parser_test
+
 clean:
 	rm -rf $(OBJ_DIR)
 
 fclean: clean
 	rm -f $(NAME)
+	rm -f parser_test
 #	rm -f $(NAME_BONUS)
 
 re: fclean all

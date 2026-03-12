@@ -25,9 +25,10 @@ std::cout << "Token type-> "
 
 std::string normalizePath(const std::string& path)
 {
-    if (path.length() > 1 && path[path.length() - 1] == '/')
-        return path.substr(0, path.length() - 1);
-    return path;
+	std::string finalPath = path;
+    while (finalPath.length() > 1 && finalPath[finalPath.length() - 1] == '/')
+        finalPath.erase(finalPath.length() - 1);
+    return finalPath;
 }
 
 bool isNumber(const std::string& str) {

@@ -5,20 +5,23 @@
 #include <iostream>
 
 void Validator::validateHost(const ServerConfig &server) {
-	if (!isValidHost(server.getHost()))
-		throw std::runtime_error("Invalid host in listen directive.");
+	const std::vector<ServerConfig::ListenDirective>& listens = server.getListenDirectives();
+	for (size_t i = 0; i < listens.size(); i++) {
+		if (!isValidHost(listens[i].host))
+			throw std::runtime_error("Invalid host in listen directive.");
+	}
 }
 
 void Validator::validatePort(const ServerConfig &server) {
-	const std::vector<int>& ports = server.getPorts();
-	std::vector<int>::const_iterator it;
-	for (it = ports.begin(); it != ports.end(); ++it) {
-		std::cout << "Validating port: " <<  *it << std::endl;
-		int port = *it;
-		if (port == -1)
-			throw std::runtime_error("Server block missing listen directive.");
-		if (port <= 0 || port > 65535)
-			throw std::runtime_error("Invalid port number.");
+
+	const std::vector<ServerConfig::ListenDirective>& listens = server.getListenDirectives();
+	if (listens.empty())
+		throw std::runtime_error("Server block missing listen directive.");
+	
+	for (size_t i = 0; i < listens.size(); i++) {
+		int port = listens[i].port;
+		if (port < 1 || port > 65535)
+			throw std::runtime_error("Invalid port number in listen directive.");
 	}
 }
 
@@ -27,14 +30,6 @@ void Validator::validateRoot(const ServerConfig &server) {
 		throw std::runtime_error("Root directive is required in server block.");
 }
 
-void Validator::validateDuplicateLocations(const std::vector<LocationConfig>& locations) {
-	for (size_t i = 0; i < locations.size(); i++) {
-		for (size_t j = i + 1; j < locations.size(); j++) {
-			if (normalizePath(locations[i].path) == normalizePath(locations[j].path))
-			throw std::runtime_error("Duplicate location paths found.");
-		}
-	}
-}
 
 void Validator::validateErrorPages(const ServerConfig &server) {
 	const std::map<int, std::string>& errorPages = server.getErrorPage();
@@ -60,7 +55,16 @@ void Validator::validateLocations(const ServerConfig &server) {
 	const std::vector<LocationConfig>& locations = server.getLocations();
 	validateDuplicateLocations(locations);
 	for (size_t i = 0; i < locations.size(); i++)
-		validateLocation(locations[i]);
+	validateLocation(locations[i]);
+}
+
+void Validator::validateDuplicateLocations(const std::vector<LocationConfig>& locations) {
+	for (size_t i = 0; i < locations.size(); i++) {
+		for (size_t j = i + 1; j < locations.size(); j++) {
+			if (normalizePath(locations[i].path) == normalizePath(locations[j].path))
+			throw std::runtime_error("Duplicate location paths found.");
+		}
+	}
 }
 
 //AUXILIARY FUNCTIONS

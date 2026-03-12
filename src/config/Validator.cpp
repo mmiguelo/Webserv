@@ -3,13 +3,16 @@
 #include <stdexcept>
 
 
-void Validator::validate(const std::map<int, ServerConfig> &servers)
+void Validator::validate(const std::map<int, std::vector<ServerConfig> > &servers)
 {
 	if (servers.empty())
 		throw std::runtime_error("No server blocks found in configuration.");
 
-	for (std::map<int, ServerConfig>::const_iterator it = servers.begin(); it != servers.end(); ++it) {
-		validateServer(it->second);
+	for (std::map<int, std::vector<ServerConfig> >::const_iterator it = servers.begin(); it != servers.end(); ++it) {
+		const std::vector<ServerConfig> &serverConfigs = it->second;
+		for (size_t i = 0; i < serverConfigs.size(); i++) {
+			validateServer(serverConfigs[i]);
+		}
 	}
 }
 

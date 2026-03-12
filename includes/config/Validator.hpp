@@ -30,7 +30,7 @@ private:
 	static void validateLocationRedirect(const LocationConfig &location);
 
 public:
-	static void validate(const std::map<int, ServerConfig> &servers); // vector pois pode haver mais que 1 server block no config file
+	static void validate(const std::map<int, std::vector<ServerConfig> > &servers); // vector pois pode haver mais que 1 server block no config file
 };
 
 #endif
