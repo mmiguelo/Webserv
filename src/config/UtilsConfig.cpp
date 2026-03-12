@@ -45,12 +45,14 @@ bool isNumber(const std::string& str) {
 std::string toAbsolutePath(const std::string& path) {
 	if (path.empty())
 		return path;
-	// Already absolute
-	if (path[0] == '/')
-		return path;
-	// Convert relative to absolute
+	// Convert relative to absolute (prepend cwd)
+	// Paths like "/www/html" are treated as relative to cwd, not system root
 	char cwd[PATH_MAX];
 	if (getcwd(cwd, sizeof(cwd)) == NULL)
 		return path; // fallback to original if getcwd fails
-	return (std::string(cwd) + "/" + path);
+	std::string cwdStr(cwd);
+	// Ensure there's a slash between cwd and path
+	if (!cwdStr.empty() && cwdStr[cwdStr.length() - 1] != '/' && path[0] != '/')
+		cwdStr += "/";
+	return (cwdStr + path);
 }
