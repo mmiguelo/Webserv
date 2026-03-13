@@ -92,58 +92,6 @@ jobs:
           find www -type f
 
       # ═══════════════════════════════════════════════════════
-      # TEST 3: DELETE on GET-only location → 405 + Allow header
-      # ═══════════════════════════════════════════════════════
-      - name: "Write config for Test 3"
-        run: |
-          cat > config/test3_methods.conf << 'EOF'
-          server {
-              listen 0.0.0.0:8080;
-              location /readonly {
-                  root www/readonly;
-                  methods GET;
-                  index index.html;
-              }
-          }
-          EOF
-
-      - name: "Test 3: DELETE on GET-only location returns 405 with Allow header"
-        run: |
-          ./webserv config/test3_methods.conf > /tmp/webserv.log 2>&1 &
-          echo $! > /tmp/webserv.pid
-          sleep 1
-          kill -0 $(cat /tmp/webserv.pid) || (echo "FAIL: server did not start"; cat /tmp/webserv.log; exit 1)
-
-          RESPONSE=$(curl -sv -X DELETE --max-time 5 \
-            http://localhost:8080/readonly/ 2>&1)
-          echo "$RESPONSE"
-
-          HTTP_CODE=$(echo "$RESPONSE" | grep -oP "HTTP/1\.1 \K[0-9]+" | head -1)
-          echo "HTTP code: $HTTP_CODE"
-
-          if [ "$HTTP_CODE" != "405" ]; then
-            echo "FAIL: expected 405 Method Not Allowed, got $HTTP_CODE"
-            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
-          fi
-
-          # RFC 7231 §7.4.1: 405 MUST include Allow header
-          if ! echo "$RESPONSE" | grep -qi "Allow:"; then
-            echo "FAIL: 405 response missing required Allow header (RFC 7231 §7.4.1)"
-            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
-          fi
-
-          ALLOW=$(echo "$RESPONSE" | grep -i "Allow:" | head -1)
-          echo "Allow header: $ALLOW"
-
-          if ! echo "$ALLOW" | grep -qi "GET"; then
-            echo "FAIL: Allow header does not list GET (the only allowed method)"
-            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
-          fi
-
-          echo "PASS: DELETE on GET-only location → 405 with Allow: GET"
-          kill $(cat /tmp/webserv.pid) 2>/dev/null || true; sleep 1
-
-      # ═══════════════════════════════════════════════════════
       # TEST 4: /old with return 301 /new → redirect
       # ═══════════════════════════════════════════════════════
       - name: "Write config for Test 4"
@@ -407,6 +355,58 @@ jobs:
             echo "INFO: got $CODE for /apiv2 (not 200, boundary check passed)"
           fi
 
+          kill $(cat /tmp/webserv.pid) 2>/dev/null || true; sleep 1
+
+      # ═══════════════════════════════════════════════════════
+      # TEST 3: DELETE on GET-only location → 405 + Allow header
+      # ═══════════════════════════════════════════════════════
+      - name: "Write config for Test 3"
+        run: |
+          cat > config/test3_methods.conf << 'EOF'
+          server {
+              listen 0.0.0.0:8080;
+              location /readonly {
+                  root www/readonly;
+                  methods GET;
+                  index index.html;
+              }
+          }
+          EOF
+
+      - name: "Test 3: DELETE on GET-only location returns 405 with Allow header"
+        run: |
+          ./webserv config/test3_methods.conf > /tmp/webserv.log 2>&1 &
+          echo $! > /tmp/webserv.pid
+          sleep 1
+          kill -0 $(cat /tmp/webserv.pid) || (echo "FAIL: server did not start"; cat /tmp/webserv.log; exit 1)
+
+          RESPONSE=$(curl -sv -X DELETE --max-time 5 \
+            http://localhost:8080/readonly/ 2>&1)
+          echo "$RESPONSE"
+
+          HTTP_CODE=$(echo "$RESPONSE" | grep -oP "HTTP/1\.1 \K[0-9]+" | head -1)
+          echo "HTTP code: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" != "405" ]; then
+            echo "FAIL: expected 405 Method Not Allowed, got $HTTP_CODE"
+            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
+          fi
+
+          # RFC 7231 §7.4.1: 405 MUST include Allow header
+          if ! echo "$RESPONSE" | grep -qi "Allow:"; then
+            echo "FAIL: 405 response missing required Allow header (RFC 7231 §7.4.1)"
+            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
+          fi
+
+          ALLOW=$(echo "$RESPONSE" | grep -i "Allow:" | head -1)
+          echo "Allow header: $ALLOW"
+
+          if ! echo "$ALLOW" | grep -qi "GET"; then
+            echo "FAIL: Allow header does not list GET (the only allowed method)"
+            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
+          fi
+
+          echo "PASS: DELETE on GET-only location → 405 with Allow: GET"
           kill $(cat /tmp/webserv.pid) 2>/dev/null || true; sleep 1
 
       # ═══════════════════════════════════════════════════════
