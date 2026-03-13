@@ -92,54 +92,6 @@ jobs:
           find www -type f
 
       # ═══════════════════════════════════════════════════════
-      # TEST 1: /images/a.png → fs_path = /var/www/a.png
-      # Config: location /images { root /var/www; }
-      # ═══════════════════════════════════════════════════════
-      - name: "Write config for Test 1"
-        run: |
-          mkdir -p config
-          cat > config/test1_images.conf << 'EOF'
-          server {
-            listen 0.0.0.0:8080;
-            root /www/var/www;
-            location /images {
-              root /www/var/www;
-              methods GET;
-            }
-          }
-          EOF
-
-      - name: "Test 1: /images/a.png resolves to correct fs_path"
-        run: |
-          ./webserv config/test1_images.conf > /tmp/webserv.log 2>&1 &
-          echo $! > /tmp/webserv.pid
-          sleep 1
-          kill -0 $(cat /tmp/webserv.pid) || (echo "FAIL: server did not start"; cat /tmp/webserv.log; exit 1)
-
-          # The router must map /images/a.png → www/var/www/a.png (strip /images prefix, prepend root)
-          HTTP_CODE=$(curl -s -o /tmp/t1_body.txt -w "%{http_code}" \
-            --max-time 5 http://localhost:8080/images/a.png 2>/dev/null)
-          BODY=$(cat /tmp/t1_body.txt 2>/dev/null)
-
-          echo "HTTP code: $HTTP_CODE"
-          echo "Body: $BODY"
-
-          # 200 = file found at correct resolved path
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "FAIL: expected 200 (file at resolved path), got $HTTP_CODE"
-            echo "This means the router did not strip the location prefix before appending root"
-            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
-          fi
-
-          if ! echo "$BODY" | grep -q "IMAGES_ROOT_FILE"; then
-            echo "FAIL: response body does not match expected file content"
-            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
-          fi
-
-          echo "PASS: /images/a.png correctly resolved to www/var/www/a.png"
-          kill $(cat /tmp/webserv.pid) 2>/dev/null || true; sleep 1
-
-      # ═══════════════════════════════════════════════════════
       # TEST 2: /api/v2 vs /api — longest prefix wins
       # Config: location /api { ... } AND location /api/v2 { ... }
       # Request /api/v2 must match /api/v2, NOT /api
@@ -407,6 +359,54 @@ jobs:
           done
 
           echo "PASS: all unmatched URIs correctly returned 404"
+          kill $(cat /tmp/webserv.pid) 2>/dev/null || true; sleep 1
+
+      # ═══════════════════════════════════════════════════════
+      # TEST 1: /images/a.png → fs_path = /var/www/a.png
+      # Config: location /images { root /var/www; }
+      # ═══════════════════════════════════════════════════════
+      - name: "Write config for Test 1"
+        run: |
+          mkdir -p config
+          cat > config/test1_images.conf << 'EOF'
+          server {
+            listen 0.0.0.0:8080;
+            root /www/var/www;
+            location /images {
+              root /www/var/www;
+              methods GET;
+            }
+          }
+          EOF
+
+      - name: "Test 1: /images/a.png resolves to correct fs_path"
+        run: |
+          ./webserv config/test1_images.conf > /tmp/webserv.log 2>&1 &
+          echo $! > /tmp/webserv.pid
+          sleep 1
+          kill -0 $(cat /tmp/webserv.pid) || (echo "FAIL: server did not start"; cat /tmp/webserv.log; exit 1)
+
+          # The router must map /images/a.png → www/var/www/a.png (strip /images prefix, prepend root)
+          HTTP_CODE=$(curl -s -o /tmp/t1_body.txt -w "%{http_code}" \
+            --max-time 5 http://localhost:8080/images/a.png 2>/dev/null)
+          BODY=$(cat /tmp/t1_body.txt 2>/dev/null)
+
+          echo "HTTP code: $HTTP_CODE"
+          echo "Body: $BODY"
+
+          # 200 = file found at correct resolved path
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "FAIL: expected 200 (file at resolved path), got $HTTP_CODE"
+            echo "This means the router did not strip the location prefix before appending root"
+            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
+          fi
+
+          if ! echo "$BODY" | grep -q "IMAGES_ROOT_FILE"; then
+            echo "FAIL: response body does not match expected file content"
+            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
+          fi
+
+          echo "PASS: /images/a.png correctly resolved to www/var/www/a.png"
           kill $(cat /tmp/webserv.pid) 2>/dev/null || true; sleep 1
 
       # ═══════════════════════════════════════════════════════
