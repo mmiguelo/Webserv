@@ -1,4 +1,5 @@
 #include "config/ConfigParser.hpp"
+#include "config/UtilsConfig.hpp"
 #include <iostream>
 #include <stdexcept>
 #include <cctype>
@@ -8,7 +9,7 @@
 
 void ConfigParser::parseLocationRoot(LocationConfig& location)
 {
-	location.root = expectWord();
+	location.root = toAbsolutePath(expectWord());
 	expect(SEMICOLON);
 }
 
