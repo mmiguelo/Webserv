@@ -65,7 +65,7 @@ jobs:
 
       - name: Prepare test fixtures
         run: |
-          DOCROOT="www"
+          DOCROOT="www/html"
           mkdir -p "$DOCROOT"
           dd if=/dev/urandom of="$DOCROOT/large.bin" bs=1024 count=512 2>/dev/null
           EXPECTED=$(wc -c < "$DOCROOT/large.bin")
