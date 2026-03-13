@@ -72,7 +72,6 @@ const LocationConfig* HttpRouter::findBestLocation(const HttpRequest& request, c
 			}
 		}
 	}
-	std::cout << "Best match: " << bestMatch->path << std::endl;
 	return bestMatch;
 }
 
@@ -110,40 +109,24 @@ std::string HttpRouter::resolveFilesystemPath(const LocationConfig& location, co
 	const std::string& locationPath = location.path;
 	const std::string& requestPath = request.getPath();
 
-	std::cout << "[Router] root: '" << root << "', locationPath: '" << locationPath << "', requestPath: '" << requestPath << "'" << std::endl;
-
 	std::string relativePath = requestPath.substr(locationPath.length());
-	std::cout << "[Router] relativePath after strip: '" << relativePath << "'" << std::endl;
 	if (!relativePath.empty() && relativePath[0] != '/')
 		relativePath = "/" + relativePath;
-	std::cout << "[Router] relativePath after ensure '/': '" << relativePath << "'" << std::endl;
-	if (!root.empty() && root[root.length()-1] == '/' && !relativePath.empty() && relativePath[0] == '/') {
-		std::cout << "[Router] Returning: '" << (root + relativePath.substr(1)) << "'" << std::endl;
-		return root + relativePath.substr(1);
-	}
-	std::cout << "[Router] Returning: '" << (root + relativePath) << "'" << std::endl;
+	if (!root.empty() && root[root.length()-1] == '/' && !relativePath.empty() && relativePath[0] == '/')
+        return root + relativePath.substr(1);
 	return root + relativePath;
 }
 
 bool HttpRouter::validatePath(const std::string& path, const std::string& root) {
-	std::cout << "[validatePath] path: '" << path << "', root: '" << root << "'" << std::endl;
-	char realRoot[PATH_MAX];
-	if (realpath(root.c_str(), realRoot) == NULL) {
-		std::cout << "[validatePath] realpath(root) failed" << std::endl;
-		return false;
-	}
-	std::string rootStr(realRoot);
-	std::cout << "[validatePath] realRoot: '" << rootStr << "'" << std::endl;
-	char realPath[PATH_MAX];
-	if (realpath(path.c_str(), realPath) == NULL) {
-		std::cout << "[validatePath] realpath(path) failed, returning true" << std::endl;
-		return true;
-	}
-	std::string pathStr(realPath);
-	std::cout << "[validatePath] realPath: '" << pathStr << "'" << std::endl;
-	bool result = pathStr.compare(0, rootStr.length(), rootStr) == 0;
-	std::cout << "[validatePath] result: " << result << std::endl;
-	return result;
+    char realRoot[PATH_MAX];
+    if (realpath(root.c_str(), realRoot) == NULL)
+        return false;
+    std::string rootStr(realRoot);
+    char realPath[PATH_MAX];
+    if (realpath(path.c_str(), realPath) == NULL)
+        return true;
+    std::string pathStr(realPath);
+    return pathStr.compare(0, rootStr.length(), rootStr) == 0;
 }
 
 static std::string methodToString(HttpMethod method)
