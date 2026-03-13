@@ -236,7 +236,7 @@ jobs:
 
       - name: "Test 5: Large response (partial send buffer drain)"
         run: |
-          DOCROOT="www"
+          DOCROOT="www/html"
           EXPECTED=$(wc -c < "$DOCROOT/large.bin")
           echo "Expected file size: $EXPECTED bytes"
 
