@@ -1,4 +1,5 @@
 #include "config/ServerConfig.hpp"
+#include "config/UtilsConfig.hpp"
 #include <algorithm>
 
 ServerConfig::ServerConfig() : _client_max_body_size(1024 * 1024) {} // 1MB
@@ -41,7 +42,7 @@ void ServerConfig::setClientMaxBodySize(size_t size) {
 	_client_max_body_size = size;
 }
 void ServerConfig::setRoot(const std::string& root) {
-	_root = root;
+	_root = toAbsolutePath(root);
 }
 void ServerConfig::addServerName(const std::string& name) {
 	_server_name.push_back(name);

@@ -1,6 +1,8 @@
 #include "config/Token.hpp"
 #include "config/UtilsConfig.hpp"
 #include <iostream>
+#include <unistd.h>
+#include <climits>
 
 
 //####------DEBUG------####
@@ -39,4 +41,19 @@ bool isNumber(const std::string& str) {
 			return false;
 	}
 	return true;
+}
+
+std::string toAbsolutePath(const std::string& path) {
+	if (path.empty())
+		return path;
+	// Convert relative to absolute (prepend cwd)
+	// Paths like "/www/html" are treated as relative to cwd, not system root
+	char cwd[PATH_MAX];
+	if (getcwd(cwd, sizeof(cwd)) == NULL)
+		return path; // fallback to original if getcwd fails
+	std::string cwdStr(cwd);
+	// Ensure there's a slash between cwd and path
+	if (!cwdStr.empty() && cwdStr[cwdStr.length() - 1] != '/' && path[0] != '/')
+		cwdStr += "/";
+	return (cwdStr + path);
 }
