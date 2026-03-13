@@ -119,65 +119,6 @@ jobs:
           echo "PASS: 200 OK with Date, Server, Content-Type, Content-Lenght"
 
       # ═══════════════════════════════════════════════════════
-      # Test 2: POST with body - body echoed in response
-      # ═══════════════════════════════════════════════════════
-
-      - name: "Test 2: POST body echoed in response"
-        run: |
-          RESPONSE=$(curl -s -X POST \
-            -d 'hello=world' \
-            -w "\n%{http_code}" \
-            --max-time 5 \
-            http://localhost:8080/echo 2>/dev/null)
-
-          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-          BODY=$(echo "$RESPONSE" | head -n -1)
-
-          echo "HTTP CODE: $HTTP_CODE"
-          echo "Body: $BODY"
-
-          if [ "$HTTP_CODE" -lt 100 ] 2>/dev/null || [ "$HTTP_CODE" -ge 600 ] 2>/dev/null; then
-            echo "FAIL: no valid HTTP response (code=$HTTP_CODE)"
-          fi
-
-          # Body must contain what we sent
-          if ! echo "$BODY" | grep -q "hello=world"; then
-            echo "FAIL: POST body not echoed in response"
-            exit 1
-          fi
-
-          echo "PASS: POST body echoed correctly (HTTP $HTTP_CODE)"
-
-      # ═══════════════════════════════════════════════════════
-      # Test 4: Chunked POST via raw TCP — body decoded correctly
-      # ═══════════════════════════════════════════════════════
-      - name: "Test 4: Chunked POST body decoded correctly"
-        run: |
-          # Build a valid chunked POST request manually
-          # "hello world" = 11 bytes = 0xb
-          REQUEST="POST /echo HTTP/1.1\r\nHost: localhost:8080\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\nb\r\nhello world\r\n0\r\n\r\n"
-
-          RESPONSE=$(printf "$REQUEST" | nc -q 2 127.0.0.1 8080 2>/dev/null || \
-                     printf "$REQUEST" | nc -w 2 127.0.0.1 8080 2>/dev/null)
-
-          echo "Response:"
-          echo "$RESPONSE"
-
-          # Must get a valid HTTP status line
-          if ! echo "$RESPONSE" | grep -qE "HTTP/1\.1 [0-9]{3}"; then
-            echo "FAIL: no valid HTTP response to chunked POST"
-            exit 1
-          fi
-
-          # Body must contain the unchunked content
-          if ! echo "$RESPONSE" | grep -q "hello world"; then
-            echo "FAIL: chunked body not correctly decoded and echoed"
-            exit 1
-          fi
-
-          echo "PASS: chunked POST decoded and echoed correctly"
-
-      # ═══════════════════════════════════════════════════════
       # FINAL HEALTH CHECK
       # ═══════════════════════════════════════════════════════
       - name: "Final health check"
@@ -274,6 +215,65 @@ jobs:
           fi
 
           echo "PASS: HEAD returns headers only, zero body bytes"
+
+      # ═══════════════════════════════════════════════════════
+      # Test 2: POST with body - body echoed in response
+      # ═══════════════════════════════════════════════════════
+
+      - name: "Test 2: POST body echoed in response"
+        run: |
+          RESPONSE=$(curl -s -X POST \
+            -d 'hello=world' \
+            -w "\n%{http_code}" \
+            --max-time 5 \
+            http://localhost:8080/echo 2>/dev/null)
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+
+          echo "HTTP CODE: $HTTP_CODE"
+          echo "Body: $BODY"
+
+          if [ "$HTTP_CODE" -lt 100 ] 2>/dev/null || [ "$HTTP_CODE" -ge 600 ] 2>/dev/null; then
+            echo "FAIL: no valid HTTP response (code=$HTTP_CODE)"
+          fi
+
+          # Body must contain what we sent
+          if ! echo "$BODY" | grep -q "hello=world"; then
+            echo "FAIL: POST body not echoed in response"
+            exit 1
+          fi
+
+          echo "PASS: POST body echoed correctly (HTTP $HTTP_CODE)"
+
+      # ═══════════════════════════════════════════════════════
+      # Test 4: Chunked POST via raw TCP — body decoded correctly
+      # ═══════════════════════════════════════════════════════
+      - name: "Test 4: Chunked POST body decoded correctly"
+        run: |
+          # Build a valid chunked POST request manually
+          # "hello world" = 11 bytes = 0xb
+          REQUEST="POST /echo HTTP/1.1\r\nHost: localhost:8080\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\nb\r\nhello world\r\n0\r\n\r\n"
+
+          RESPONSE=$(printf "$REQUEST" | nc -q 2 127.0.0.1 8080 2>/dev/null || \
+                     printf "$REQUEST" | nc -w 2 127.0.0.1 8080 2>/dev/null)
+
+          echo "Response:"
+          echo "$RESPONSE"
+
+          # Must get a valid HTTP status line
+          if ! echo "$RESPONSE" | grep -qE "HTTP/1\.1 [0-9]{3}"; then
+            echo "FAIL: no valid HTTP response to chunked POST"
+            exit 1
+          fi
+
+          # Body must contain the unchunked content
+          if ! echo "$RESPONSE" | grep -q "hello world"; then
+            echo "FAIL: chunked body not correctly decoded and echoed"
+            exit 1
+          fi
+
+          echo "PASS: chunked POST decoded and echoed correctly"
 
       # ═══════════════════════════════════════════════════════
       # TEARDOWN
