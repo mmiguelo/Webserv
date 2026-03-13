@@ -1,5 +1,7 @@
 #include "HttpResponse.hpp"
 #include "HttpRequest.hpp"
+#include <sys/stat.h>
+#include <unistd.h>
 
 //define the static member
 std::map<int, std::string> HttpResponse::_codeMsg;
@@ -79,13 +81,6 @@ std::string HttpResponse::_getMimeType(const std::string& path)
     return "application/octet-stream";
 }
 
-bool HttpResponse::_fileExists(const std::string& path)
-{
-    std::cout << "Checking file existence: " << path << std::endl;
-    std::ifstream file(path.c_str());
-    return file.good();
-}
-
 void HttpResponse::build(int statusCode, const std::string& body, const std::string& contentType, const std::string& version) {
     _statusCode = statusCode;
     _body = body;
@@ -104,47 +99,63 @@ std::string HttpResponse::replaceAll(std::string str, const std::string& from, c
 
 std::string HttpResponse::_readFile(const std::string& path) const {
     std::ifstream file(path.c_str());
-    if (!file.is_open())
-        return "";
-
     std::stringstream buffer;
     buffer << file.rdbuf();
     return buffer.str();
+}
+
+int HttpResponse::checkFile(const std::string& path) const {
+    struct stat st;
+
+    if (stat(path.c_str(), &st) != 0)
+        return 404; // Not Found
+    if(S_ISDIR(st.st_mode)) //is a directory
+        return 300; //
+    if (!(S_ISREG(st.st_mode))) //is not a reg file
+        return 500;
+    if (access(path.c_str(), R_OK) != 0) //if a dir then can i read it?
+        return 403; // Forbidden
+    std::ifstream file(path.c_str(), std::ios::binary);
+    if (!file.is_open())
+        return 500; // other
+    return 200; // OK
 }
 
 std::string HttpResponse::buildFromFile(const HttpRequest& request, const std::string& root) {
 
     _version = request.getVersion();
     if (_version.empty())
-        _version = "HTTP/1.1";
-
+    _version = "HTTP/1.1";
+    
     std::string requestPath = request.getPath();
-    std::cout << "Requested path: " << requestPath << std::endl;
     std::string filePath = root + requestPath;
-    std::cout << "Constructed file path: " << filePath << std::endl;
 
-    // If path ends with /, try to serve index.html
-    if (!filePath.empty() && filePath[filePath.size() - 1] == '/')
-        filePath += "index.html";
-    // If path is a directory without trailing slash, try index.html
-    else if (_fileExists(filePath + "/index.html"))
-        filePath += "/index.html";
 
-    std::cout << "Final file path: " << filePath << std::endl;
-
-    // Check if file exists
-    if (_fileExists(filePath)) {
-        std::cout << "Serving file: " << filePath << std::endl;
-        std::string body = _readFile(filePath);
-        _statusCode = 200;
-        _body = body;
-        _contentType = _getMimeType(filePath);
-        return serialize(request.getMethod());
+    int checkError = checkFile(filePath);
+    std::cout << "Content-type: " << _getMimeType(filePath) << std::endl;
+    std::cout << "checkError: " << checkError << std::endl;
+    if (checkError == 404 || checkError == 403 || checkError == 500)
+        return buildError(checkError, request);
+    
+    else if (checkError == 300) {
+        // option 1: redirect if path does not end with '/'
+        if (requestPath[requestPath.size() - 1] != '/') {
+            _statusCode = 301;
+            filePath += '/';
+            return serialize(request.getMethod());
+        }
+        // option 2: try to serve index.html inside dir
+        std::string indexPath = filePath + "index.html";
+        int indexCheck = checkFile(indexPath);
+        if (indexCheck == 200)
+            filePath = indexPath;
+        else
+            return buildError(403, request); // Forbidden if no index.html in dir
     }
-    else {
-        std::cout << "File not found: " << filePath << std::endl;
-        return buildError(404, request);
-    }
+    _body = _readFile(filePath);
+    _contentType = _getMimeType(filePath);
+    _statusCode = 200;
+    return serialize(request.getMethod());
 }
 
 std::string HttpResponse::buildError(int statusCode, const HttpRequest& request) {

@@ -31,6 +31,8 @@ class HttpResponse {
         HttpResponse(const HttpResponse& other);
         HttpResponse& operator=(const HttpResponse& other);
 
+        int checkFile(const std::string& path) const;
+
         void build(int statusCode, const std::string& body, const std::string& contentType, const std::string& version);
         std::string buildError(int statusCode, const HttpRequest& request);
         std::string buildFromFile(const HttpRequest& request, const std::string& root);
