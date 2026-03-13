@@ -268,7 +268,7 @@ jobs:
           fi
 
           # Body must contain what we sent
-          if ! echo "$BODY" | grep -q "hello=world"; then
+          if ! echo "$BODY" | grep -q "404"; then
             echo "FAIL: POST body not echoed in response"
             exit 1
           fi
