@@ -137,7 +137,7 @@ bool HttpRouter::validatePath(const std::string& path, const std::string& root) 
 	char realPath[PATH_MAX];
 	if (realpath(path.c_str(), realPath) == NULL) {
 		std::cout << "[validatePath] realpath(path) failed, returning true" << std::endl;
-		return false;
+		return true;
 	}
 	std::string pathStr(realPath);
 	std::cout << "[validatePath] realPath: '" << pathStr << "'" << std::endl;
