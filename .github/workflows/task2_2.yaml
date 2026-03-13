@@ -48,7 +48,7 @@ jobs:
       - name: Install dependencies
         run: apt-get update && apt-get install -y make g++ strace netcat-openbsd curl procps
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # ═══════════════════════════════════════════════════════
       # BUILD
