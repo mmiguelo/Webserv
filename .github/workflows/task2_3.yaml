@@ -100,11 +100,12 @@ jobs:
           mkdir -p config
           cat > config/test1_images.conf << 'EOF'
           server {
-              listen 0.0.0.0:8080;
-              location /images {
-                  root /www/var/www;
-                  methods GET;
-              }
+            listen 0.0.0.0:8080;
+            root /www/var/www;
+            location /images {
+              root /www/var/www;
+              methods GET;
+            }
           }
           EOF
 
