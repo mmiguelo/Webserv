@@ -65,7 +65,7 @@ jobs:
 
       - name: Prepare test fixtures
         run: |
-          DOCROOT="www"
+          DOCROOT="www/html"
           mkdir -p "$DOCROOT"
           if [ ! -f "$DOCROOT/index.html" ]; then
             echo "<html><body>OK</body></html>" > "$DOCROOT/index.html"
@@ -98,7 +98,7 @@ jobs:
             exit 1
           fi
 
-          for HEADER in "Date:" "Server:" "Content-Length" "Content-TYpe:"; do
+          for HEADER in "Date:" "Server:" "Content-Length" "Content-Type:"; do
             if ! echo "$RESPONSE" | grep -qi "$HEADER"; then
               echo "FAIL: missing required header '$HEADER'"
               exit 1
