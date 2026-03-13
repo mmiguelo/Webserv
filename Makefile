@@ -37,6 +37,7 @@ EPOLL = EpollServer.cpp
 HTTP =	HttpRequest.cpp
 HTTP +=	HttpParser.cpp
 HTTP +=	HttpResponse.cpp
+HTTP +=	HttpRouter.cpp
 
 FILE_PARSE = ConfigParser.cpp
 FILE_PARSE += ConfigParserLocation.cpp
@@ -85,15 +86,11 @@ $(OBJ_DIR)/%.o: %.cpp | $(OBJ_DIR)
 $(OBJ_DIR):
 	@mkdir -p $(OBJ_DIR)
 
-parser_test: $(OBJ_PARSER)
-	$(CXX) $(CXXFLAGS) $(OBJ_PARSER) -o parser_test
-
 clean:
 	rm -rf $(OBJ_DIR)
 
 fclean: clean
 	rm -f $(NAME)
-	rm -f parser_test
 #	rm -f $(NAME_BONUS)
 
 re: fclean all

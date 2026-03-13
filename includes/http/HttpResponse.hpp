@@ -33,7 +33,7 @@ class HttpResponse {
 
         void build(int statusCode, const std::string& body, const std::string& contentType, const std::string& version);
         std::string buildError(int statusCode, const HttpRequest& request);
-        std::string buildFromFile(const HttpRequest& request, const std::string& root);
+        std::string buildFromFile(const HttpRequest& request, const std::string& filePath);
         std::string serialize(HttpMethod method) const;
 
         const std::string& getStatusMessage(int code) const;
