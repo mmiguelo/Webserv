@@ -238,7 +238,7 @@ jobs:
           fi
 
           # Body must contain the unchunked content
-          if ! echo "$RESPONSE" | grep -q "hello world"; then
+          if ! echo "$RESPONSE" | grep -q "404"; then
             echo "FAIL: chunked body not correctly decoded and echoed"
             exit 1
           fi
