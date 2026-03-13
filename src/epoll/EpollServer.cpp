@@ -258,7 +258,14 @@ void EpollServer::_handleClientResponse(int fd)
     }
 
     ssize_t sent = send(fd, data.send_buf.data(), data.send_buf.size(), 0);
-    if (sent <= 0)
+    if (sent < 0)
+    {
+        if (errno == EAGAIN || errno == EWOULDBLOCK)
+            return; // send buffer full, wait for next EPOLLOUT
+        _closeClient(fd);
+        return;
+    }
+    if (sent == 0)
     {
         _closeClient(fd);
         return;
