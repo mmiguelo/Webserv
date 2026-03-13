@@ -92,79 +92,6 @@ jobs:
           find www -type f
 
       # ═══════════════════════════════════════════════════════
-      # TEST 2: /api/v2 vs /api — longest prefix wins
-      # Config: location /api { ... } AND location /api/v2 { ... }
-      # Request /api/v2 must match /api/v2, NOT /api
-      # ═══════════════════════════════════════════════════════
-      - name: "Write config for Test 2"
-        run: |
-          cat > config/test2_prefix.conf << 'EOF'
-          server {
-              listen 0.0.0.0:8080;
-              location /api {
-                  root www/api;
-                  methods GET;
-                  index index.html;
-              }
-              location /api/v2 {
-                  root www/api/v2;
-                  methods GET;
-                  index index.html;
-              }
-          }
-          EOF
-
-      - name: "Test 2: /api/v2 matches longer prefix, not /api"
-        run: |
-          ./webserv config/test2_prefix.conf > /tmp/webserv.log 2>&1 &
-          echo $! > /tmp/webserv.pid
-          sleep 1
-          kill -0 $(cat /tmp/webserv.pid) || (echo "FAIL: server did not start"; cat /tmp/webserv.log; exit 1)
-
-          BODY=$(curl -s --max-time 5 http://localhost:8080/api/v2/ 2>/dev/null)
-          echo "Body for /api/v2/: $BODY"
-
-          # Must serve from /api/v2 root (contains "api v2 root"), not /api root ("api root")
-          if echo "$BODY" | grep -q "api v2 root"; then
-            echo "PASS: /api/v2 matched longer prefix location /api/v2"
-          elif echo "$BODY" | grep -q "api root"; then
-            echo "FAIL: /api/v2 was matched by shorter prefix /api instead of /api/v2"
-            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
-          else
-            echo "WARN: could not determine which location matched (body='$BODY')"
-            # Still verify no crash
-            CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:8080/api/v2/ 2>/dev/null)
-            echo "HTTP code: $CODE"
-            [ "$CODE" != "000" ] && echo "PASS: server responded to /api/v2/ (longest-prefix check inconclusive)" || exit 1
-          fi
-
-          kill $(cat /tmp/webserv.pid) 2>/dev/null || true; sleep 1
-
-      # Edge case: /apiv2 must NOT match /api (false prefix)
-      - name: "Test 2b: /apiv2 does NOT match /api (boundary check)"
-        run: |
-          ./webserv config/test2_prefix.conf > /tmp/webserv.log 2>&1 &
-          echo $! > /tmp/webserv.pid
-          sleep 1
-          kill -0 $(cat /tmp/webserv.pid) || (echo "FAIL: server did not start"; exit 1)
-
-          CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-            --max-time 5 http://localhost:8080/apiv2 2>/dev/null)
-          echo "HTTP code for /apiv2: $CODE"
-
-          # /apiv2 has no matching location → must be 404, not 200 from /api
-          if [ "$CODE" = "404" ]; then
-            echo "PASS: /apiv2 correctly returned 404 (not a prefix match for /api)"
-          elif [ "$CODE" = "200" ]; then
-            echo "FAIL: /apiv2 incorrectly matched location /api (false prefix match)"
-            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
-          else
-            echo "INFO: got $CODE for /apiv2 (not 200, boundary check passed)"
-          fi
-
-          kill $(cat /tmp/webserv.pid) 2>/dev/null || true; sleep 1
-
-      # ═══════════════════════════════════════════════════════
       # TEST 3: DELETE on GET-only location → 405 + Allow header
       # ═══════════════════════════════════════════════════════
       - name: "Write config for Test 3"
@@ -407,6 +334,79 @@ jobs:
           fi
 
           echo "PASS: /images/a.png correctly resolved to www/var/www/a.png"
+          kill $(cat /tmp/webserv.pid) 2>/dev/null || true; sleep 1
+
+      # ═══════════════════════════════════════════════════════
+      # TEST 2: /api/v2 vs /api — longest prefix wins
+      # Config: location /api { ... } AND location /api/v2 { ... }
+      # Request /api/v2 must match /api/v2, NOT /api
+      # ═══════════════════════════════════════════════════════
+      - name: "Write config for Test 2"
+        run: |
+          cat > config/test2_prefix.conf << 'EOF'
+          server {
+              listen 0.0.0.0:8080;
+              location /api {
+                  root www/api;
+                  methods GET;
+                  index index.html;
+              }
+              location /api/v2 {
+                  root www/api/v2;
+                  methods GET;
+                  index index.html;
+              }
+          }
+          EOF
+
+      - name: "Test 2: /api/v2 matches longer prefix, not /api"
+        run: |
+          ./webserv config/test2_prefix.conf > /tmp/webserv.log 2>&1 &
+          echo $! > /tmp/webserv.pid
+          sleep 1
+          kill -0 $(cat /tmp/webserv.pid) || (echo "FAIL: server did not start"; cat /tmp/webserv.log; exit 1)
+
+          BODY=$(curl -s --max-time 5 http://localhost:8080/api/v2/ 2>/dev/null)
+          echo "Body for /api/v2/: $BODY"
+
+          # Must serve from /api/v2 root (contains "api v2 root"), not /api root ("api root")
+          if echo "$BODY" | grep -q "api v2 root"; then
+            echo "PASS: /api/v2 matched longer prefix location /api/v2"
+          elif echo "$BODY" | grep -q "api root"; then
+            echo "FAIL: /api/v2 was matched by shorter prefix /api instead of /api/v2"
+            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
+          else
+            echo "WARN: could not determine which location matched (body='$BODY')"
+            # Still verify no crash
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:8080/api/v2/ 2>/dev/null)
+            echo "HTTP code: $CODE"
+            [ "$CODE" != "000" ] && echo "PASS: server responded to /api/v2/ (longest-prefix check inconclusive)" || exit 1
+          fi
+
+          kill $(cat /tmp/webserv.pid) 2>/dev/null || true; sleep 1
+
+      # Edge case: /apiv2 must NOT match /api (false prefix)
+      - name: "Test 2b: /apiv2 does NOT match /api (boundary check)"
+        run: |
+          ./webserv config/test2_prefix.conf > /tmp/webserv.log 2>&1 &
+          echo $! > /tmp/webserv.pid
+          sleep 1
+          kill -0 $(cat /tmp/webserv.pid) || (echo "FAIL: server did not start"; exit 1)
+
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 5 http://localhost:8080/apiv2 2>/dev/null)
+          echo "HTTP code for /apiv2: $CODE"
+
+          # /apiv2 has no matching location → must be 404, not 200 from /api
+          if [ "$CODE" = "404" ]; then
+            echo "PASS: /apiv2 correctly returned 404 (not a prefix match for /api)"
+          elif [ "$CODE" = "200" ]; then
+            echo "FAIL: /apiv2 incorrectly matched location /api (false prefix match)"
+            kill $(cat /tmp/webserv.pid) 2>/dev/null; exit 1
+          else
+            echo "INFO: got $CODE for /apiv2 (not 200, boundary check passed)"
+          fi
+
           kill $(cat /tmp/webserv.pid) 2>/dev/null || true; sleep 1
 
       # ═══════════════════════════════════════════════════════
