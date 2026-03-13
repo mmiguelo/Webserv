@@ -267,7 +267,7 @@ jobs:
 
       - name: "Test 6: Slow client forces multiple EPOLLOUT events"
         run: |
-          EXPECTED=$(wc -c < www/large.bin)
+          EXPECTED=$(wc -c < www/html/large.bin)
           RECEIVED=$(curl -s --limit-rate 100k http://localhost:8080/large.bin | wc -c)
 
           echo "Expected=$EXPECTED, Received=$RECEIVED"
