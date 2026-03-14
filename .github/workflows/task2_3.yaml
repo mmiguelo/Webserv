@@ -100,10 +100,11 @@ jobs:
           server {
               listen 0.0.0.0:8080;
               location /old {
+                  root /www/old;
                   return 301 /new;
               }
               location /new {
-                  root www/new;
+                  root /www/new;
                   methods GET;
                   index index.html;
               }
@@ -161,7 +162,7 @@ jobs:
           server {
               listen 0.0.0.0:8080;
               location / {
-                  root www;
+                  root /www;
                   methods GET;
               }
           }
@@ -209,7 +210,7 @@ jobs:
           server {
               listen 0.0.0.0:8080;
               location /exists {
-                  root www;
+                  root /www;
                   methods GET;
               }
           }
@@ -295,12 +296,12 @@ jobs:
           server {
               listen 0.0.0.0:8080;
               location /api {
-                  root www/api;
+                  root /www/api;
                   methods GET;
                   index index.html;
               }
               location /api/v2 {
-                  root www/api/v2;
+                  root /www/api/v2;
                   methods GET;
                   index index.html;
               }
@@ -366,7 +367,7 @@ jobs:
           server {
               listen 0.0.0.0:8080;
               location /readonly {
-                  root www/readonly;
+                  root /www/readonly;
                   methods GET;
                   index index.html;
               }

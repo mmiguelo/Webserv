@@ -17,6 +17,8 @@ class HttpResponse {
         std::string                         _contentType;
         std::string                         _version;
 
+        std::string                         _location;  //TESTE
+
         static void initCodeMsg();
         std::string _readFile(const std::string& path) const;
         static std::string replaceAll(std::string str, const std::string& from, const std::string& to);
@@ -38,6 +40,8 @@ class HttpResponse {
 
         const std::string& getStatusMessage(int code) const;
         std::string getVersion() const;
+        
+        void setLocation(const std::string& url);
 
         bool hasBody() const;
 };

@@ -19,6 +19,7 @@ HttpRouteMatch HttpRouter::route(const HttpRequest& request, const ServerConfig&
 	//REDIRECT
 	if(bestLocation->has_redirect) {
 		match.errorCode = bestLocation->redirect_code;
+		match.redirectTarget = bestLocation->redirect_url;
 		return match;
 	}
 
@@ -42,8 +43,6 @@ HttpRouteMatch HttpRouter::route(const HttpRequest& request, const ServerConfig&
 		match.executeCGI = true;
 		match.cgiInterpreter = cgiInterpreter;
 	}
-
-
 	match.errorCode = 0;
 	return match;
 }

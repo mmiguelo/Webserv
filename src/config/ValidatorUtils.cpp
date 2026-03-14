@@ -26,8 +26,19 @@ void Validator::validatePort(const ServerConfig &server) {
 }
 
 void Validator::validateRoot(const ServerConfig &server) {
-	if (server.getRoot().empty())
-		throw std::runtime_error("Root directive is required in server block.");
+	if (server.getRoot().empty()) {
+		bool locationHasRoot = false;
+
+		const std::vector<LocationConfig>& locations = server.getLocations();
+		for (size_t i = 0; i < locations.size(); i++) {
+			if (!locations[i].root.empty()) {
+				locationHasRoot = true;
+				break;
+			}
+		}
+		if (!locationHasRoot)
+			throw std::runtime_error("Root directive is required in server block.");
+	}
 }
 
 

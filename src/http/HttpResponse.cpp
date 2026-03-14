@@ -179,6 +179,10 @@ std::string HttpResponse::serialize(HttpMethod method) const {
     oss << "Date: " << httpDate() << "\r\n";
     if (!_contentType.empty())
         oss << "Content-Type: " << _contentType << "\r\n";
+
+    if (!_location.empty())
+        oss << "Location: " << _location << "\r\n";
+
     if (hasBody()) // No Content should not have a body
         oss << "Content-Length: " << _body.size() << "\r\n";
     oss << "Connection: keep-alive\r\n"; //TODO on sprint 4
@@ -223,4 +227,8 @@ bool HttpResponse::hasBody() const {
 
 std::string HttpResponse::getVersion() const {
     return _version;
+}
+
+void HttpResponse::setLocation(const std::string& url) {
+    _location = url;
 }

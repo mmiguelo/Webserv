@@ -202,8 +202,12 @@ void EpollServer::_createResponse(int fd, bool complete, ClientData &data)
             // PARTE NOVA COM O ROUTER
             HttpRouter router;
             HttpRouteMatch match = router.route(request, *config);
-
-            if (match.errorCode != 0)
+            if (match.errorCode == 301 || match.errorCode == 302) {
+                response.build(match.errorCode, "", "", request.getVersion());
+                response.setLocation(match.redirectTarget);
+                responseStr = response.serialize(request.getMethod());
+            }
+            else if (match.errorCode != 0)
                 responseStr = response.buildError(match.errorCode, request);
             else if (match.executeCGI) {
                 // later Dev B will implement CGI handler
