@@ -66,21 +66,21 @@ jobs:
       - name: Prepare test fixtures
         run: |
           # ── Test 1 fixture: /images prefix maps root /var/www ──
-          mkdir -p www/var/www/html
-          echo "IMAGES_ROOT_FILE" > www/var/www/html/a.png
+          mkdir -p www/var/www
+          echo "IMAGES_ROOT_FILE" > www/var/www/a.png
 
           # ── Test 2 fixture: /api and /api/v2 locations ──
-          mkdir -p www/html/api www/html/api/v2
-          echo "api root"    > www/html/api/index.html
-          echo "api v2 root" > www/html/api/v2/index.html
+          mkdir -p www/html/api www/api/v2
+          echo "api root"    > www/api/index.html
+          echo "api v2 root" > www/api/v2/index.html
 
           # ── Test 3 fixture: GET-only location ──
-          mkdir -p www/html/readonly
-          echo "read only"   > www/html/readonly/index.html
+          mkdir -p www/readonly
+          echo "read only"   > www/readonly/index.html
 
           # ── Test 4 fixture: redirect /old → /new ──
-          mkdir -p www/html/new
-          echo "new page"    > www/html/new/index.html
+          mkdir -p www/new
+          echo "new page"    > www/new/index.html
 
           # ── Test 5 fixture: traversal target must NOT be reachable ──
           # /etc/passwd exists on the system; we just need the server to block it
