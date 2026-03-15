@@ -109,11 +109,18 @@ std::string HttpRouter::resolveFilesystemPath(const LocationConfig& location, co
 	const std::string& requestPath = request.getPath();
 
 	std::string relativePath = requestPath.substr(locationPath.length());
-	if (!relativePath.empty() && relativePath[0] != '/')
-		relativePath = "/" + relativePath;
-	if (!root.empty() && root[root.length()-1] == '/' && !relativePath.empty() && relativePath[0] == '/')
-        return root + relativePath.substr(1);
-	return root + relativePath;
+	if (relativePath.empty())
+        relativePath = "/";
+
+	if (!relativePath.empty() && relativePath[0] == '/')
+		relativePath.erase(0, 1);
+
+	std::string fullPath = root;
+	if (!fullPath.empty() && fullPath[fullPath.length() - 1] != '/')
+		fullPath += '/';
+
+	fullPath += relativePath;
+	return fullPath;
 }
 
 bool HttpRouter::validatePath(const std::string& path, const std::string& root) {

@@ -182,6 +182,8 @@ std::string HttpResponse::serialize(HttpMethod method) const {
 
     if (!_location.empty())
         oss << "Location: " << _location << "\r\n";
+    if (!_allow.empty())
+        oss << "Allow: " << _allow << "\r\n";
 
     if (hasBody()) // No Content should not have a body
         oss << "Content-Length: " << _body.size() << "\r\n";
@@ -231,4 +233,13 @@ std::string HttpResponse::getVersion() const {
 
 void HttpResponse::setLocation(const std::string& url) {
     _location = url;
+}
+
+void HttpResponse::setAllow(const std::vector<std::string>& methods) {
+    _allow.clear();
+    for (size_t i = 0; i < methods.size(); i++) {
+        if (i > 0)
+            _allow += ", ";
+        _allow += methods[i];
+    } //TODO: isto é para o teste 3 da task 2.3. Precisa de ser revisto
 }

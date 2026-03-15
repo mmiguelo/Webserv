@@ -18,6 +18,7 @@ class HttpResponse {
         std::string                         _version;
 
         std::string                         _location;  //TESTE
+        std::string                         _allow;     //TESTE
 
         static void initCodeMsg();
         std::string _readFile(const std::string& path) const;
@@ -42,6 +43,7 @@ class HttpResponse {
         std::string getVersion() const;
         
         void setLocation(const std::string& url);
+        void setAllow(const std::vector<std::string>& methods);
 
         bool hasBody() const;
 };
