@@ -1,5 +1,6 @@
 #include "HttpResponse.hpp"
 #include "HttpRequest.hpp"
+#include "HttpRouter.hpp"
 
 //define the static member
 std::map<int, std::string> HttpResponse::_codeMsg;
@@ -112,39 +113,31 @@ std::string HttpResponse::_readFile(const std::string& path) const {
     return buffer.str();
 }
 
-std::string HttpResponse::buildFromFile(const HttpRequest& request, const std::string& root) {
+std::string HttpResponse::buildFromFile(const HttpRequest& request, const std::string& filePath) {
 
     _version = request.getVersion();
     if (_version.empty())
         _version = "HTTP/1.1";
 
-    std::string requestPath = request.getPath();
-    std::cout << "Requested path: " << requestPath << std::endl;
-    std::string filePath = root + requestPath;
-    std::cout << "Constructed file path: " << filePath << std::endl;
-
+    std::cout << "Serving resolved path: " << filePath << std::endl;
+    std::string path = filePath;
     // If path ends with /, try to serve index.html
-    if (!filePath.empty() && filePath[filePath.size() - 1] == '/')
-        filePath += "index.html";
+    if (!path.empty() && path[path.size() - 1] == '/')
+        path += "index.html";
     // If path is a directory without trailing slash, try index.html
-    else if (_fileExists(filePath + "/index.html"))
-        filePath += "/index.html";
-
-    std::cout << "Final file path: " << filePath << std::endl;
+    else if (_fileExists(path + "/index.html"))
+        path += "/index.html";
 
     // Check if file exists
-    if (_fileExists(filePath)) {
-        std::cout << "Serving file: " << filePath << std::endl;
-        std::string body = _readFile(filePath);
+    if (_fileExists(path)) {
+        std::string body = _readFile(path);
         _statusCode = 200;
         _body = body;
-        _contentType = _getMimeType(filePath);
+        _contentType = _getMimeType(path);
         return serialize(request.getMethod());
     }
-    else {
-        std::cout << "File not found: " << filePath << std::endl;
+    else
         return buildError(404, request);
-    }
 }
 
 std::string HttpResponse::buildError(int statusCode, const HttpRequest& request) {
@@ -186,6 +179,12 @@ std::string HttpResponse::serialize(HttpMethod method) const {
     oss << "Date: " << httpDate() << "\r\n";
     if (!_contentType.empty())
         oss << "Content-Type: " << _contentType << "\r\n";
+
+    if (!_location.empty())
+        oss << "Location: " << _location << "\r\n";
+    if (!_allow.empty())
+        oss << "Allow: " << _allow << "\r\n";
+
     if (hasBody()) // No Content should not have a body
         oss << "Content-Length: " << _body.size() << "\r\n";
     oss << "Connection: keep-alive\r\n"; //TODO on sprint 4
@@ -230,4 +229,17 @@ bool HttpResponse::hasBody() const {
 
 std::string HttpResponse::getVersion() const {
     return _version;
+}
+
+void HttpResponse::setLocation(const std::string& url) {
+    _location = url;
+}
+
+void HttpResponse::setAllow(const std::vector<std::string>& methods) {
+    _allow.clear();
+    for (size_t i = 0; i < methods.size(); i++) {
+        if (i > 0)
+            _allow += ", ";
+        _allow += methods[i];
+    } //TODO: isto é para o teste 3 da task 2.3. Precisa de ser revisto
 }

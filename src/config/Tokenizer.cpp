@@ -1,4 +1,4 @@
-#include "config/Tokenizer.hpp"
+#include "Tokenizer.hpp"
 #include <iostream>
 #include <cctype>
 
@@ -8,24 +8,6 @@ static bool checkWhitespace(const std::string& fileContent, size_t& i);
 static bool checkComment(const std::string& fileContent, size_t& i);
 static bool checkSymbol(const std::string& fileContent, size_t& i, std::vector<Token>& token_vector, size_t lineNum);
 static void addWord(const std::string& fileContent, size_t& i, std::vector<Token>& token_vector, size_t lineNum);
-
-/* Tokenizer::Tokenizer() {
-	//std::cout << "Tokenizer constructor called" << std::endl;
-}
-
-Tokenizer::Tokenizer(const Tokenizer& other) {
-	(void)other;
-}
-
-Tokenizer& Tokenizer::operator=(const Tokenizer& other) {
-	if (this != &other)
-		(void)other;
-	return *this;
-}
-
-Tokenizer::~Tokenizer() {
-	//std::cout << "Tokenizer destructor called" << std::endl;
-} */
 
 std::vector<Token> Tokenizer::tokenize(const std::string& fileContent) {
 	std::vector<Token> tokens_vector;

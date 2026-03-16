@@ -2,6 +2,7 @@
 #include "HttpParser.hpp"
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
+#include "HttpRouter.hpp"
 #include <fstream>
 #include <sstream>
 
@@ -95,7 +96,7 @@ int EpollServer::_createAndBindSocket(const std::string &host, int port)
 
 void EpollServer::addServer(ServerConfig &config, int port)
 {
-    int fd = _createAndBindSocket(config.getHost(), port);
+    int fd = _createAndBindSocket(config.getListenDirectives()[0].host, port);
     _setNonBlocking(fd);
     _registerToEpoll(fd, EPOLLIN);
     _listenFds.insert(fd);
@@ -103,7 +104,7 @@ void EpollServer::addServer(ServerConfig &config, int port)
 
     std::ostringstream oss;
     oss << port;
-    utils::log_info("Listening on " + config.getHost() + ":" + oss.str());
+    utils::log_info("Listening on " + config.getListenDirectives()[0].host + ":" + oss.str());
 }
 
 void EpollServer::_acceptNewClient(int listenFd)
@@ -217,10 +218,28 @@ void EpollServer::_createResponse(int fd, bool complete, ClientData &data)
         else {
             // Get the root directory from config
             ServerConfig* config = _fdToConfig[data.server_fd];
-            std::string root = config->getRoot();
-                        
-            // Let HttpResponse handle file serving and 404
-            responseStr = response.buildFromFile(request, root);
+            
+            // PARTE NOVA COM O ROUTER
+            HttpRouter router;
+            HttpRouteMatch match = router.route(request, *config);
+            if (match.errorCode == 301 || match.errorCode == 302) {
+                response.build(match.errorCode, "", "", request.getVersion());
+                response.setLocation(match.redirectTarget);
+                responseStr = response.serialize(request.getMethod());
+            }
+            if (match.errorCode == 405) {
+                response.build(405, "", "", request.getVersion());
+                response.setAllow(match.location->methods); // allowed methods
+                responseStr = response.serialize(request.getMethod());
+            }
+            else if (match.errorCode != 0)
+                responseStr = response.buildError(match.errorCode, request);
+            else if (match.executeCGI) {
+                // later Dev B will implement CGI handler
+                responseStr = response.buildError(501, request);
+            }
+            else
+                responseStr = response.buildFromFile(request, match.path);
         }
     }
     else

@@ -1,4 +1,4 @@
-#include "config/ConfigParser.hpp"
+#include "ConfigParser.hpp"
 #include "utils.hpp"
 #include <stdexcept>
 #include <sstream>
@@ -35,13 +35,31 @@ void ConfigParser::expect(TokenType type) {
 	next();
 }
 
-void ConfigParser::parse(std::map<int, ServerConfig> &servers) {
-	while (!isEnd())
-	{
+void ConfigParser::parse(std::map<int, std::vector<ServerConfig> > &servers) {
+	while (!isEnd()) {
 		ServerConfig config = parseServerBlock();
-		int port = config.getPort();
-		if (!servers.insert(std::make_pair(port, config)).second)
-			throw parseError("Duplicate server block with port: " + numberToString(port));
+		const std::vector<ServerConfig::ListenDirective>& listens =
+			config.getListenDirectives();
+
+		if (listens.empty())
+			throw parseError("Server block must have at least one listen directive");
+
+		std::vector<int> insertedPorts;
+
+		for (size_t i = 0; i < listens.size(); i++) {
+			int port = listens[i].port;
+			bool isInserted = false;
+			for (size_t j = 0; j < insertedPorts.size(); j++) {
+				if (insertedPorts[j] == port) {
+					isInserted = true;
+					break;
+				}
+			}
+			if (!isInserted) {
+				servers[port].push_back(config);
+				insertedPorts.push_back(port);
+			}
+		}
 	}
 }
 
@@ -76,14 +94,4 @@ std::string ConfigParser::numberToString(size_t number) {
 	std::stringstream ss;
 	ss << number;
 	return ss.str();
-}
-
-bool ConfigParser::isNumber(const std::string& str) const {
-	if (str.empty())
-		return false;
-	for (size_t i = 0; i < str.size(); i++) {
-		if (!std::isdigit(str[i]))
-			return false;
-	}
-	return true;
 }

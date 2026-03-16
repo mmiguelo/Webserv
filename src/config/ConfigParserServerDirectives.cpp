@@ -1,5 +1,5 @@
-#include "config/ConfigParser.hpp"
-#include "config/UtilsConfig.hpp"
+#include "ConfigParser.hpp"
+#include "utils.hpp"
 #include <iostream>
 #include <stdexcept>
 #include <cctype>
@@ -17,11 +17,14 @@ std::string ConfigParser::expectWord() {
 
 void ConfigParser::parseListen(ServerConfig& serverBlock) {
 	std::string value = expectWord(); //avancamos do token "listen" para o valor da porta
-	
 	std::string host = "0.0.0.0";
 	std::string port;
+
 	size_t dividerPos = value.find(':');
 	if (dividerPos != std::string::npos) {
+		if (value.find(':', dividerPos + 1) != std::string::npos)
+        	throw parseError("Invalid listen directive: " + value);
+
 		host = value.substr(0, dividerPos);
 		port = value.substr(dividerPos + 1);
 
@@ -34,15 +37,9 @@ void ConfigParser::parseListen(ServerConfig& serverBlock) {
 	if (!isNumber(port))
         throw parseError("Invalid port number: " + port);
 	int portNum = std::atoi(port.c_str()); //convertemos a string para int
-	serverBlock.setHost(host); //atribuimos o valor do host ao serverBlock
-	serverBlock.setPort(portNum); //atribuimos o valor da porta ao serverBlock
-	std::cout << "Current ports in server block: ";
-	std::vector<int> ports = serverBlock.getPorts();
-	for (size_t i = 0; i < ports.size(); i++) {
-		std::cout << ports[i] << " ";
-	}
-	std::cout << std::endl;
-	expect(SEMICOLON); //verificamos se o próximo token é um ponto e vírgula
+	
+	serverBlock.addListenDirective(host, portNum);
+	expect(SEMICOLON);
 }
 
 void ConfigParser::parseRoot(ServerConfig& serverBlock) {
@@ -98,12 +95,18 @@ void ConfigParser::parseClientMaxBodySize(ServerConfig& serverBlock) {
 }
 
 void ConfigParser::parseErrorPage(ServerConfig& serverBlock) {
-	std::string codeStr = expectWord(); //primeiro recebemos o código de erro como string
-	int code = std::atoi(codeStr.c_str());
-	if (code < 100 || code > 599)
-		throw parseError("Invalid error code: " + codeStr);
+	std::vector<int> codes;
+
+	while (peek().type == WORD && isNumber(peek().value)) {
+		std::string codeStr = expectWord();
+		int code = std::atoi(codeStr.c_str());
+		if (code < 100 || code > 599)
+			throw parseError("Invalid error code: " + codeStr);
+		codes.push_back(code);
+	}
 
 	std::string path = expectWord(); //depois recebemos o path
-	serverBlock.addErrorPage(code, path); //atribuimos o código e o path ao map de error_page
+	for (size_t i = 0; i < codes.size(); ++i)
+		serverBlock.addErrorPage(codes[i], path); //atribuimos o código e o path ao serverBlock
 	expect(SEMICOLON);
 }
