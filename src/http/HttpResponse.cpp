@@ -135,17 +135,15 @@ std::string HttpResponse::buildFromFile(const HttpRequest& request, const std::s
         _version = "HTTP/1.1";
 
     std::string path = filePath;
-    int checkError = checkFile(path);
+
     // If path ends with /, try to serve index.html
-    if (!path.empty() && path[path.size() - 1] == '/') {
+    if (!path.empty() && path[path.size() - 1] == '/')
         path += "index.html";
-        std::cout << "Trying to serve " << path << std::endl;
-    }
     // If path is a directory without trailing slash, try index.html
-    else if (_fileExists(path + "/index.html")) {
+    else if (_fileExists(path + "/index.html"))
         path += "/index.html";
-        std::cout << "Trying to serve " << path << std::endl;
-    }
+
+    int checkError = checkFile(path);
     if (checkError == 404 || checkError == 403 || checkError == 500)
         return buildError(checkError, request);
 
