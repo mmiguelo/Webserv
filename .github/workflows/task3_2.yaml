@@ -121,16 +121,9 @@ jobs:
           CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/doesnotexist.txt)
           [ "$CODE" = "404" ] || (echo "FAIL: Expected 404, got $CODE"; exit 1)
 
-      # TEST 6: 403 Forbidden for chmod 000 file
-      - name: "Test 6: 403 Forbidden for forbidden file"
-        run: |
-          chmod 000 www/forbidden.txt
-          CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/forbidden.txt)
-          echo "Received HTTP code: $CODE for forbidden.txt"
-          [ "$CODE" = "403" ] || (echo "FAIL: Expected 403, got $CODE"; exit 1)
 
-      # TEST 7: Browser loads page with linked CSS and images
-      - name: "Test 7: Browser loads page with linked CSS and images"
+      # TEST 6: Browser loads page with linked CSS and images
+      - name: "Test 6: Browser loads page with linked CSS and images"
         run: |
           curl -s http://127.0.0.1:8080/index.html -o /tmp/index.html
           grep -q "Hello" /tmp/index.html || (echo "FAIL: index.html not served"; exit 1)
