@@ -58,7 +58,8 @@ const LocationConfig* HttpRouter::findBestLocation(const HttpRequest& request, c
 
 		if (requestPath.compare(0, locationBlockPath.length(), locationBlockPath) == 0) {
 			bool validPrefix = true;
-			if(requestPath.length() > locationBlockPath.length()) {
+			// Root location should match any path that starts with '/'
+			if (locationBlockPath != "/" && requestPath.length() > locationBlockPath.length()) {
 				char nextChar = requestPath[locationBlockPath.length()];
 				if (nextChar != '/' && nextChar != '?')
 					validPrefix = false; //esta location path nao é um match valido
