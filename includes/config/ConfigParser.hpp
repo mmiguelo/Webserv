@@ -8,7 +8,8 @@
 #include "config/ServerConfig.hpp"
 #include "config/LocationConfig.hpp"
 
-class ConfigParser {
+class ConfigParser
+{
 private:
 	const std::vector<Token> &_tokens; // referencia do vector de tokens passados pelos tokenizer, iniciado no constructor
 	size_t _pos;					   // indice para vector de tokens
@@ -38,7 +39,7 @@ private:
 	bool isEnd() const;						 // verificamos se chegamos ao fim do vector
 	void expect(TokenType type);			 // verificamos se o token atual é do type esperado
 	bool matchWord(const std::string &word); // verificamos se o token atual é uma palavra específica
-	bool isNumber(const std::string& str) const;
+	bool isNumber(const std::string &str) const;
 	std::string expectWord();
 	std::string tokenTypeToString(TokenType type) const; // função para converter o enum TokenType em string
 	std::string numberToString(size_t number);

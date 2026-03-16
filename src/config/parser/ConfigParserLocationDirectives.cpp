@@ -5,21 +5,21 @@
 #include <cctype>
 #include <cstdlib>
 
-//Location Directives
+// Location Directives
 
-void ConfigParser::parseLocationRoot(LocationConfig& location)
+void ConfigParser::parseLocationRoot(LocationConfig &location)
 {
 	location.root = toAbsolutePath(expectWord());
 	expect(SEMICOLON);
 }
 
-void ConfigParser::parseUploadDir(LocationConfig& location)
+void ConfigParser::parseUploadDir(LocationConfig &location)
 {
 	location.upload_dir = expectWord();
 	expect(SEMICOLON);
 }
 
-void ConfigParser::parseAutoindex(LocationConfig& location)
+void ConfigParser::parseAutoindex(LocationConfig &location)
 {
 	std::string value = expectWord();
 
@@ -32,7 +32,7 @@ void ConfigParser::parseAutoindex(LocationConfig& location)
 	expect(SEMICOLON);
 }
 
-void ConfigParser::parseLocationMethods(LocationConfig& location)
+void ConfigParser::parseLocationMethods(LocationConfig &location)
 {
 	location.methods.push_back(expectWord());
 	while (!isEnd() && peek().type == WORD)
@@ -41,7 +41,7 @@ void ConfigParser::parseLocationMethods(LocationConfig& location)
 	expect(SEMICOLON);
 }
 
-void ConfigParser::parseCgiExt(LocationConfig& location)
+void ConfigParser::parseCgiExt(LocationConfig &location)
 {
 	std::string extension = expectWord();
 	std::string interpreter = expectWord();
@@ -51,10 +51,10 @@ void ConfigParser::parseCgiExt(LocationConfig& location)
 	expect(SEMICOLON);
 }
 
-void ConfigParser::parseReturn(LocationConfig& location)
+void ConfigParser::parseReturn(LocationConfig &location)
 {
-	//return 301 http://example.com/;
-	//or like this: return 404;
+	// return 301 http://example.com/;
+	// or like this: return 404;
 
 	std::string codeStr = expectWord();
 	int code = std::atoi(codeStr.c_str());
@@ -67,7 +67,7 @@ void ConfigParser::parseReturn(LocationConfig& location)
 	expect(SEMICOLON);
 }
 
-void ConfigParser::parseLocationIndex(LocationConfig& location)
+void ConfigParser::parseLocationIndex(LocationConfig &location)
 {
 	location.index.push_back(expectWord());
 	while (!isEnd() && peek().type == WORD)

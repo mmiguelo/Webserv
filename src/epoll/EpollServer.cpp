@@ -107,7 +107,7 @@ void EpollServer::_acceptNewClient(int listenFd)
         ClientData data;
         data.last_activity = time(NULL);
         data.server_fd = listenFd;
-        data.continue_sent = false;  // Add this
+        data.continue_sent = false; // Add this
         _clients[client_fd] = data;
         std::cout << "New Client fd = " << client_fd << std::endl;
     }
@@ -155,7 +155,7 @@ void EpollServer::_handleClientData(int fd)
 
     std::string newData(buffer, bytesRead);
     bool complete = data.parser.feed(newData, *_fdToConfig[data.server_fd]);
-    HttpRequest& request = data.parser.getRequest();
+    HttpRequest &request = data.parser.getRequest();
 
     // Handle Expect: 100-continue
     if (data.parser.getState() == PARSE_ERROR)
@@ -191,21 +191,81 @@ void EpollServer::_createResponse(int fd, bool complete, ClientData &data)
 
     if (data.parser.getState() == PARSE_ERROR)
         responseStr = response.buildError(statusCode, request);
-    else if (complete) {
+    else if (complete)
+    {
         if (statusCode >= 400)
             responseStr = response.buildError(statusCode, request);
-        else {
+        else
+        {
             // Get the root directory from config
-            ServerConfig* config = _fdToConfig[data.server_fd];
+            ServerConfig *config = _fdToConfig[data.server_fd];
             std::string root = config->getRoot();
-                        
-            // Let HttpResponse handle file serving and 404
-            responseStr = response.buildFromFile(request, root);
+
+            // Try to find the best matching location (longest prefix)
+            const std::vector<LocationConfig> &locations = config->getLocations();
+            const LocationConfig *bestLoc = NULL;
+            int bestLen = -1;
+            std::string requestPath = request.getPath();
+
+            for (size_t i = 0; i < locations.size(); ++i)
+            {
+                const LocationConfig &loc = locations[i];
+                const std::string &locPath = loc.path;
+                if (locPath == "/")
+                {
+                    if ((int)1 > bestLen)
+                    {
+                        bestLen = 1;
+                        bestLoc = &loc;
+                    }
+                    continue;
+                }
+                if (requestPath == locPath)
+                {
+                    if ((int)locPath.size() > bestLen)
+                    {
+                        bestLen = locPath.size();
+                        bestLoc = &loc;
+                    }
+                }
+                else if (requestPath.size() > locPath.size() && requestPath.compare(0, locPath.size(), locPath) == 0 && requestPath[locPath.size()] == '/')
+                {
+                    if ((int)locPath.size() > bestLen)
+                    {
+                        bestLen = locPath.size();
+                        bestLoc = &loc;
+                    }
+                }
+            }
+
+            if (bestLoc)
+            {
+                // Use location root and strip the location prefix from request path
+                std::string remainder;
+                if (requestPath == bestLoc->path)
+                    remainder = "/";
+                else
+                    remainder = requestPath.substr(bestLoc->path.size());
+
+                // Ensure remainder starts with '/'
+                if (remainder.empty() || remainder[0] != '/')
+                    remainder = "/" + remainder;
+
+                root = bestLoc->root;
+                HttpRequest reqCopy = request;
+                reqCopy.setPath(remainder);
+                responseStr = response.buildFromFile(reqCopy, root);
+            }
+            else
+            {
+                // Let HttpResponse handle file serving and 404 using server root
+                responseStr = response.buildFromFile(request, root);
+            }
         }
     }
     else
         responseStr = response.buildError(400, request); // Incomplete request, treat as bad request
-    
+
     if (responseStr.empty())
         responseStr = response.serialize(request.getMethod());
     data.send_buf = responseStr;
@@ -286,7 +346,8 @@ void EpollServer::run()
                         _handleClientData(fd);
                     if (_clients.count(fd) && (ev & EPOLLOUT))
 
-                        _handleClientResponse(fd);                }
+                        _handleClientResponse(fd);
+                }
             }
         }
     }

@@ -1,88 +1,109 @@
-#include "config/ServerConfig.hpp"
-#include "config/UtilsConfig.hpp"
+#include "ServerConfig.hpp"
+#include "UtilsConfig.hpp"
 #include <algorithm>
+#include <iostream>
 
-ServerConfig::ServerConfig() : _host("0.0.0.0"), _client_max_body_size(1024 * 1024) {
+ServerConfig::ServerConfig() : _host("0.0.0.0"), _client_max_body_size(1024 * 1024)
+{
 	//_ports.push_back(-1); //inicializamos a porta com -1 para indicar que ainda não foi configurada
 }
 
-static bool compareLocationLength(const LocationConfig& a, const LocationConfig& b) {
+static bool compareLocationLength(const LocationConfig &a, const LocationConfig &b)
+{
 	return a.path.length() > b.path.length();
 }
-void ServerConfig::sortLocations() {
-	std::sort(_locations.begin(), _locations.end(),compareLocationLength);
+void ServerConfig::sortLocations()
+{
+	std::sort(_locations.begin(), _locations.end(), compareLocationLength);
 }
 
 // Getters
 
-const std::string& ServerConfig::getHost() const {
+const std::string &ServerConfig::getHost() const
+{
 	return _host;
 }
 
-int ServerConfig::getPort() const {
+int ServerConfig::getPort() const
+{
 	if (_ports.empty())
 		return -1;
-	return _ports[_ports.size() - 1]; //retorna a última porta adicionada, caso haja mais de uma
+	return _ports[_ports.size() - 1]; // retorna a última porta adicionada, caso haja mais de uma
 }
 
-std::vector<int> ServerConfig::getPorts() const {
+std::vector<int> ServerConfig::getPorts() const
+{
 	return _ports;
 }
 
-size_t ServerConfig::getClientMaxBodySize() const {
+size_t ServerConfig::getClientMaxBodySize() const
+{
 	return _client_max_body_size;
 }
 
-const std::string& ServerConfig::getRoot() const {
+const std::string &ServerConfig::getRoot() const
+{
 	return _root;
 }
 
-const std::vector<std::string>& ServerConfig::getServerName() const {
+const std::vector<std::string> &ServerConfig::getServerName() const
+{
 	return _server_name;
 }
 
-const std::vector<std::string>& ServerConfig::getMethods() const {
+const std::vector<std::string> &ServerConfig::getMethods() const
+{
 	return _methods;
 }
 
-const std::map<int, std::string>& ServerConfig::getErrorPage() const {
+const std::map<int, std::string> &ServerConfig::getErrorPage() const
+{
 	return _error_page;
 }
 
-const std::vector<LocationConfig>& ServerConfig::getLocations() const {
+const std::vector<LocationConfig> &ServerConfig::getLocations() const
+{
 	return _locations;
 }
 
 // Setters (set by ConfigParser)
 
-void ServerConfig::setHost(const std::string& host) {
+void ServerConfig::setHost(const std::string &host)
+{
 	_host = host;
 }
 
-void ServerConfig::setPort(int port) {
+void ServerConfig::setPort(int port)
+{
 	_ports.push_back(port);
 }
 
-void ServerConfig::setClientMaxBodySize(size_t size) {
+void ServerConfig::setClientMaxBodySize(size_t size)
+{
 	_client_max_body_size = size;
 }
 
-void ServerConfig::setRoot(const std::string& root) {
+void ServerConfig::setRoot(const std::string &root)
+{
 	_root = toAbsolutePath(root);
 }
 
-void ServerConfig::addServerName(const std::string& name) {
+void ServerConfig::addServerName(const std::string &name)
+{
 	_server_name.push_back(name);
 }
 
-void ServerConfig::addMethod(const std::string& method) {
+void ServerConfig::addMethod(const std::string &method)
+{
 	_methods.push_back(method);
 }
 
-void ServerConfig::addErrorPage(int code, const std::string& path) {
+void ServerConfig::addErrorPage(int code, const std::string &path)
+{
 	_error_page.insert(std::make_pair(code, path));
 }
 
-void ServerConfig::addLocation(const LocationConfig& location) {
+void ServerConfig::addLocation(const LocationConfig &location)
+{
 	_locations.push_back(location);
 }

@@ -3,8 +3,9 @@
 #include "config/LocationConfig.hpp"
 #include "config/UtilsConfig.hpp"
 #include <stdexcept>
+#include <iostream>
 
-void ConfigParser::parseLocation(ServerConfig& serverBlock)
+void ConfigParser::parseLocation(ServerConfig &serverBlock)
 {
 	LocationConfig location;
 
@@ -12,6 +13,8 @@ void ConfigParser::parseLocation(ServerConfig& serverBlock)
 	expect(LBRACE);
 	while (!isEnd() && peek().type != RBRACE)
 	{
+		if (location.root.empty())
+			location.root = serverBlock.getRoot();
 		if (matchWord("root"))
 			parseLocationRoot(location);
 		else if (matchWord("upload_dir"))
