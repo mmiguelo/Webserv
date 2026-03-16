@@ -1,4 +1,4 @@
-#include "http/HttpRouter.hpp"
+#include "HttpRouter.hpp"
 #include <limits.h>
 #include <stdlib.h>
 
@@ -8,7 +8,7 @@ static std::string methodToString(HttpMethod method);
 HttpRouteMatch HttpRouter::route(const HttpRequest& request, const ServerConfig& serverConfig) {
 	HttpRouteMatch match;
 
-	//LOCATUION
+	//LOCATION
 	const LocationConfig* bestLocation = findBestLocation(request, serverConfig);
 	if (!bestLocation) {
 		match.errorCode = 404; // Not Found
@@ -133,16 +133,4 @@ bool HttpRouter::validatePath(const std::string& path, const std::string& root) 
         return true;
     std::string pathStr(realPath);
     return pathStr.compare(0, rootStr.length(), rootStr) == 0;
-}
-
-static std::string methodToString(HttpMethod method)
-{
-    switch (method)
-    {
-        case METHOD_GET:    return "GET";
-        case METHOD_POST:   return "POST";
-        case METHOD_DELETE: return "DELETE";
-        case METHOD_HEAD:   return "HEAD";
-        default:            return "";
-    }
 }

@@ -43,3 +43,9 @@ HttpMethod          stringToMethod(const std::string& method);
 std::string         methodToString(HttpMethod method);
 bool                isValidDecimal(const std::string& s);
 bool                isValidHexadecimal(const std::string& s);
+
+std::string tokenTypeToString(TokenType type);
+void debugPrintToken(const Token& token);
+bool isNumber(const std::string& str);
+std::string normalizePath(const std::string& path);
+std::string toAbsolutePath(const std::string& path);

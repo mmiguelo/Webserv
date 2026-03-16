@@ -1,4 +1,4 @@
-#include "config/ConfigParser.hpp"
+#include "ConfigParser.hpp"
 #include "utils.hpp"
 #include <stdexcept>
 #include <sstream>
@@ -94,14 +94,4 @@ std::string ConfigParser::numberToString(size_t number) {
 	std::stringstream ss;
 	ss << number;
 	return ss.str();
-}
-
-bool ConfigParser::isNumber(const std::string& str) const {
-	if (str.empty())
-		return false;
-	for (size_t i = 0; i < str.size(); i++) {
-		if (!std::isdigit(str[i]))
-			return false;
-	}
-	return true;
 }

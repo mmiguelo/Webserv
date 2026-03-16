@@ -1,5 +1,5 @@
-#include "config/ServerConfig.hpp"
-#include "config/UtilsConfig.hpp"
+#include "ServerConfig.hpp"
+#include "utils.hpp"
 #include <algorithm>
 
 ServerConfig::ServerConfig() : _client_max_body_size(1024 * 1024) {} // 1MB

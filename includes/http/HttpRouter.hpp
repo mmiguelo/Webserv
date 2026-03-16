@@ -1,9 +1,9 @@
 #ifndef HTTPROUTER_HPP
 #define HTTPROUTER_HPP
 
-#include "http/HttpRouteMatch.hpp"
-#include "http/HttpRequest.hpp"
-#include "config/ServerConfig.hpp"
+#include "HttpRouteMatch.hpp"
+#include "HttpRequest.hpp"
+#include "ServerConfig.hpp"
 
 class HttpRouter {
 	private:

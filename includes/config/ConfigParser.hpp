@@ -4,7 +4,7 @@
 #include <vector>
 #include <string>
 #include <stdexcept>
-#include "config/Token.hpp"
+#include "config/Tokenizer.hpp"
 #include "config/ServerConfig.hpp"
 #include "config/LocationConfig.hpp"
 
@@ -38,7 +38,6 @@ class ConfigParser {
 		bool isEnd() const;						 // verificamos se chegamos ao fim do vector
 		void expect(TokenType type);			 // verificamos se o token atual é do type esperado
 		bool matchWord(const std::string &word); // verificamos se o token atual é uma palavra específica
-		bool isNumber(const std::string& str) const;
 		std::string expectWord();
 		std::string tokenTypeToString(TokenType type) const; // função para converter o enum TokenType em string
 		std::string numberToString(size_t number);

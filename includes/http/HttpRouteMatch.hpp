@@ -2,7 +2,7 @@
 #define HTTPROUTEMATCH_HPP
 
 #include <string>
-#include "config/LocationConfig.hpp"
+#include "LocationConfig.hpp"
 
 struct HttpRouteMatch {
 	const LocationConfig* location; //pointer pq pode ser nulo, ua referencia tem que ser inicializada com base num objeto
