@@ -25,6 +25,7 @@
 #include "HttpRequest.hpp"
 #include "HttpParser.hpp"
 #include "ServerConfig.hpp"
+#include "Tokenizer.hpp"
 
 /*=============================================================================#
 #                              UTILITY FUNCTIONS                               #

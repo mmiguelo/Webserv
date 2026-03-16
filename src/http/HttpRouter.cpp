@@ -1,9 +1,7 @@
 #include "HttpRouter.hpp"
 #include <limits.h>
 #include <stdlib.h>
-
-
-static std::string methodToString(HttpMethod method);
+#include "utils.hpp"
 
 HttpRouteMatch HttpRouter::route(const HttpRequest& request, const ServerConfig& serverConfig) {
 	HttpRouteMatch match;
