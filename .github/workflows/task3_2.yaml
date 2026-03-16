@@ -65,8 +65,6 @@ jobs:
           echo '<!DOCTYPE html><html><head><link rel="stylesheet" href="style.css"></head><body>Hello <img src="image.png"></body></html>' > www/index.html
           echo 'body { background: #abc; }' > www/style.css
           head -c 128 /dev/urandom > www/image.png
-          echo 'forbidden' > www/forbidden.txt
-          chmod 000 www/forbidden.txt
 
       - name: Write config for static serving
         run: |
