@@ -126,7 +126,9 @@ jobs:
       # TEST 6: 403 Forbidden for chmod 000 file
       - name: "Test 6: 403 Forbidden for forbidden file"
         run: |
+          chmod 000 www/forbidden.txt
           CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/forbidden.txt)
+          echo "Received HTTP code: $CODE for forbidden.txt"
           [ "$CODE" = "403" ] || (echo "FAIL: Expected 403, got $CODE"; exit 1)
 
       # TEST 7: Browser loads page with linked CSS and images
