@@ -5,7 +5,7 @@
 #include <fstream>
 #include <sstream>
 #include "Tokenizer.hpp"
-#include "UtilsConfig.hpp" // for debugPrintToken
+#include "utils.hpp" // for debugPrintToken
 #include "ConfigParser.hpp"
 #include "Validator.hpp"
 
