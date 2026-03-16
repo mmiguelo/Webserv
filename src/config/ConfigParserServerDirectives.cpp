@@ -15,12 +15,6 @@ std::string ConfigParser::expectWord()
 }
 
 // Server Directives
-
-void ConfigParser::parseListen(ServerConfig &serverBlock)
-{
-	std::string value = expectWord(); // avancamos do token "listen" para o valor da porta
-}
-
 void ConfigParser::parseListen(ServerConfig& serverBlock) {
 	std::string value = expectWord(); //avancamos do token "listen" para o valor da porta
 	std::string host = "0.0.0.0";
