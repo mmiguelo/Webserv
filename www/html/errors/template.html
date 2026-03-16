@@ -1,0 +1,29 @@
+<!--- Try this function on the response error-->
+
+std::string replaceAll(std::string str, const std::string& from, const std::string& to) {
+    size_t pos = 0;
+    while ((pos = str.find(from, pos)) != std::string::npos) {
+        str.replace(pos, from.length(), to);
+        pos += to.length();
+    }
+    return str;
+}
+
+void HttpResponse::buildError(int statusCode, const HttpRequest& request) {
+    _version = request.getVersion().empty() ? "HTTP/1.1" : request.getVersion();
+    _statusCode = statusCode;
+    _contentType = "text/html";
+    
+    // Convert status code to string
+    std::ostringstream codeStr;
+    codeStr << statusCode;
+    
+    // Read template file (you'll need to implement readFile)
+    std::string templateHtml = readFile("www/errors/template.html");
+    
+    // Replace placeholders
+    templateHtml = replaceAll(templateHtml, "{{ERROR_CODE}}", codeStr.str());
+    templateHtml = replaceAll(templateHtml, "{{ERROR_MESSAGE}}", getStatusMessage(statusCode));
+    
+    _body = templateHtml;
+}

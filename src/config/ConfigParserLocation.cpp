@@ -1,7 +1,7 @@
-#include "config/ConfigParser.hpp"
-#include "config/ServerConfig.hpp"
-#include "config/LocationConfig.hpp"
-#include "config/UtilsConfig.hpp"
+#include "ConfigParser.hpp"
+#include "ServerConfig.hpp"
+#include "LocationConfig.hpp"
+#include "utils.hpp"
 #include <stdexcept>
 #include <iostream>
 

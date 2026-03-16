@@ -22,7 +22,6 @@ VPATH =		$(SRC_DIR)
 VPATH +=	$(SRC_DIR)/epoll
 VPATH +=	$(SRC_DIR)/http
 VPATH +=	$(SRC_DIR)/config
-VPATH +=	$(SRC_DIR)/config/parser
 
 #==============================================================================#
 #                                   SOURCES                                    #
@@ -37,25 +36,28 @@ EPOLL = EpollServer.cpp
 HTTP =	HttpRequest.cpp
 HTTP +=	HttpParser.cpp
 HTTP +=	HttpResponse.cpp
+HTTP +=	HttpRouter.cpp
 
 FILE_PARSE = ConfigParser.cpp
 FILE_PARSE += ConfigParserLocation.cpp
 FILE_PARSE += ConfigParserLocationDirectives.cpp
 FILE_PARSE += ConfigParserServer.cpp
 FILE_PARSE += ConfigParserServerDirectives.cpp
+FILE_PARSE += Validator.cpp
+FILE_PARSE += Tokenizer.cpp
+FILE_PARSE += ServerConfig.cpp
 
-FILE_CONFIG	= Validator.cpp
-FILE_CONFIG	+= ValidatorUtils.cpp
-FILE_CONFIG += ValidatorUtils2.cpp
-FILE_CONFIG	+= Tokenizer.cpp
-FILE_CONFIG	+= UtilsConfig.cpp
-FILE_CONFIG += ServerConfig.cpp
 
 SRC	=	$(GENERAL)
 SRC	+=	$(HTTP)
 SRC	+=	$(EPOLL)
-SRC	+=	$(FILE_CONFIG)
 SRC +=	$(FILE_PARSE)
+
+# Parser-only sources (no epoll)
+SRC_PARSER = $(GENERAL)
+SRC_PARSER += $(FILE_PARSE)
+
+OBJ_PARSER = $(SRC_PARSER:%.cpp=$(OBJ_DIR)/%.o)
 
 OBJ			= $(SRC:%.cpp=$(OBJ_DIR)/%.o)
 

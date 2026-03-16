@@ -115,11 +115,11 @@ std::string HttpResponse::_readFile(const std::string& path) const {
 
 std::string HttpResponse::buildFromFile(const HttpRequest& request, const std::string& filePath) {
 
-    _version = request.getVersion().empty() ? "HTTP/1.1" : request.getVersion();
-    _location.clear();
-    _allow.clear();
+    _version = request.getVersion();
+    if (_version.empty())
+        _version = "HTTP/1.1";
 
-    // `filePath` is the resolved filesystem path (fs_path) from the router.
+    std::cout << "Serving resolved path: " << filePath << std::endl;
     std::string path = filePath;
     // If path ends with /, try to serve index.html
     if (!path.empty() && path[path.size() - 1] == '/')

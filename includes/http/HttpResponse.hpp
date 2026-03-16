@@ -17,6 +17,9 @@ class HttpResponse {
         std::string                         _contentType;
         std::string                         _version;
 
+        std::string                         _location;  //TESTE
+        std::string                         _allow;     //TESTE
+
         static void initCodeMsg();
         std::string _readFile(const std::string& path) const;
         static std::string replaceAll(std::string str, const std::string& from, const std::string& to);
@@ -35,11 +38,14 @@ class HttpResponse {
 
         void build(int statusCode, const std::string& body, const std::string& contentType, const std::string& version);
         std::string buildError(int statusCode, const HttpRequest& request);
-        std::string buildFromFile(const HttpRequest& request, const std::string& root);
+        std::string buildFromFile(const HttpRequest& request, const std::string& filePath);
         std::string serialize(HttpMethod method) const;
 
         const std::string& getStatusMessage(int code) const;
         std::string getVersion() const;
+        
+        void setLocation(const std::string& url);
+        void setAllow(const std::vector<std::string>& methods);
 
         bool hasBody() const;
 };

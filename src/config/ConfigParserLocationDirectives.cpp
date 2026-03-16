@@ -1,5 +1,5 @@
-#include "config/ConfigParser.hpp"
-#include "config/UtilsConfig.hpp"
+#include "ConfigParser.hpp"
+#include "utils.hpp"
 #include <iostream>
 #include <stdexcept>
 #include <cctype>
