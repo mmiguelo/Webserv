@@ -33,13 +33,15 @@ std::string trimWhitespace(const std::string& str) {
 }
 
 HttpMethod stringToMethod(const std::string& method) {
-    switch (method) {
-        case "GET":    return METHOD_GET;
-        case "POST":   return METHOD_POST;
-        case "DELETE": return METHOD_DELETE;
-        case "HEAD":   return METHOD_HEAD;
-        default:         return METHOD_UNKNOWN;
-    }
+    if (method == "GET")
+        return METHOD_GET;
+    if (method == "POST")
+        return METHOD_POST;
+    if (method == "DELETE")
+        return METHOD_DELETE;
+    if (method == "HEAD")
+        return METHOD_HEAD;
+    return METHOD_UNKNOWN;
 }
 
 std::string methodToString(HttpMethod method) {
