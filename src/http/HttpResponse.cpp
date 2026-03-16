@@ -64,7 +64,7 @@ std::string HttpResponse::_getMimeType(const std::string& path)
         return "application/octet-stream";
     
     std::string ext = path.substr(dot);
-    if (ext == ".html" || ext == ".htm") return "text/html";
+    if (ext == ".html" || ext == ".htm") return "text/html; charset=utf-8";
     if (ext == ".css") return "text/css";
     if (ext == ".js") return "application/javascript";
     if (ext == ".json") return "application/json";
@@ -73,7 +73,7 @@ std::string HttpResponse::_getMimeType(const std::string& path)
     if (ext == ".gif") return "image/gif";
     if (ext == ".svg") return "image/svg+xml";
     if (ext == ".ico") return "image/x-icon";
-    if (ext == ".txt") return "text/plain";
+    if (ext == ".txt") return "text/plain; charset=utf-8";
     if (ext == ".xml") return "application/xml";
     if (ext == ".pdf") return "application/pdf";
     if (ext == ".mp4") return "video/mp4";
