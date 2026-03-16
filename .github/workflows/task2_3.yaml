@@ -101,6 +101,7 @@ jobs:
           cat > config/test1_images.conf << 'EOF'
           server {
               listen 0.0.0.0:8080;
+              root www;
               location /images {
                   root www/var/www;
                   methods GET;
