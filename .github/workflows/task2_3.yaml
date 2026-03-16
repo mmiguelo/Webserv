@@ -149,6 +149,7 @@ jobs:
           cat > config/test2_prefix.conf << 'EOF'
           server {
               listen 0.0.0.0:8080;
+              root /;
               location /api {
                   root www/api;
                   methods GET;
@@ -220,6 +221,7 @@ jobs:
           cat > config/test3_methods.conf << 'EOF'
           server {
               listen 0.0.0.0:8080;
+              root /;
               location /readonly {
                   root www/readonly;
                   methods GET;
@@ -272,6 +274,7 @@ jobs:
           cat > config/test4_redirect.conf << 'EOF'
           server {
               listen 0.0.0.0:8080;
+              root /;
               location /old {
                   return 301 /new;
               }
@@ -333,6 +336,7 @@ jobs:
           cat > config/test5_traversal.conf << 'EOF'
           server {
               listen 0.0.0.0:8080;
+              root /;
               location / {
                   root www;
                   methods GET;
@@ -381,6 +385,7 @@ jobs:
           cat > config/test6_nomatch.conf << 'EOF'
           server {
               listen 0.0.0.0:8080;
+              root /;
               location /exists {
                   root www;
                   methods GET;
