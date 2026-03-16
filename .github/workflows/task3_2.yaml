@@ -75,7 +75,7 @@ jobs:
               listen 127.0.0.1:8080;
               root www;
               location / {
-                  methods GET;
+                  methods GET HEAD;
                   index index.html;
               }
           }
