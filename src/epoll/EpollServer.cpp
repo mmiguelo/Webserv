@@ -201,66 +201,8 @@ void EpollServer::_createResponse(int fd, bool complete, ClientData &data)
             ServerConfig *config = _fdToConfig[data.server_fd];
             std::string root = config->getRoot();
 
-            // Try to find the best matching location (longest prefix)
-            const std::vector<LocationConfig> &locations = config->getLocations();
-            const LocationConfig *bestLoc = NULL;
-            int bestLen = -1;
-            std::string requestPath = request.getPath();
-
-            for (size_t i = 0; i < locations.size(); ++i)
-            {
-                const LocationConfig &loc = locations[i];
-                const std::string &locPath = loc.path;
-                if (locPath == "/")
-                {
-                    if ((int)1 > bestLen)
-                    {
-                        bestLen = 1;
-                        bestLoc = &loc;
-                    }
-                    continue;
-                }
-                if (requestPath == locPath)
-                {
-                    if ((int)locPath.size() > bestLen)
-                    {
-                        bestLen = locPath.size();
-                        bestLoc = &loc;
-                    }
-                }
-                else if (requestPath.size() > locPath.size() && requestPath.compare(0, locPath.size(), locPath) == 0 && requestPath[locPath.size()] == '/')
-                {
-                    if ((int)locPath.size() > bestLen)
-                    {
-                        bestLen = locPath.size();
-                        bestLoc = &loc;
-                    }
-                }
-            }
-
-            if (bestLoc)
-            {
-                // Use location root and strip the location prefix from request path
-                std::string remainder;
-                if (requestPath == bestLoc->path)
-                    remainder = "/";
-                else
-                    remainder = requestPath.substr(bestLoc->path.size());
-
-                // Ensure remainder starts with '/'
-                if (remainder.empty() || remainder[0] != '/')
-                    remainder = "/" + remainder;
-
-                root = bestLoc->root;
-                HttpRequest reqCopy = request;
-                reqCopy.setPath(remainder);
-                responseStr = response.buildFromFile(reqCopy, root);
-            }
-            else
-            {
-                // Let HttpResponse handle file serving and 404 using server root
-                responseStr = response.buildFromFile(request, root);
-            }
+            // Let HttpResponse handle file serving and 404
+            responseStr = response.buildFromFile(request, root);
         }
     }
     else
