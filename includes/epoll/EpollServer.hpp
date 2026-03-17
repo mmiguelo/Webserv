@@ -17,7 +17,7 @@
 #include "HttpParser.hpp"
 
 #define MAX_EVENTS 64
-#define MAX_TIMEOUT 10
+#define MAX_TIMEOUT 30
 
 struct ClientData
 {
@@ -28,6 +28,8 @@ struct ClientData
     time_t last_activity;
     HttpParser parser;
     bool continue_sent;
+    bool should_close_after_send;
+    ClientData() : server_fd(-1), server_config(NULL), last_activity(0), continue_sent(false), should_close_after_send(false) {}
 };
 
 class EpollServer
@@ -48,12 +50,20 @@ private:
     void _closeClient(int fd);
     void _handleClientResponse(int fd);
     void _checkTimeout();
-    void _createResponse(int fd, bool complete, ClientData &data);
+    void _createResponse(int fd, bool complete, ClientData *data);
+    void _processPipelines(int fd, ClientData *data);
+    void _verifyGetAddr(int ret, int fd);
+    void _verifyBind(int fd, struct addrinfo *res, std::ostringstream *oss, const std::string &host);
+    void _verifyListen(int fd);
+    bool _keepAlive(const HttpRequest &request);
+    std::string EpollServer::_buildResponse(ClientData *data, const HttpRequest &request, int statusCode);
+    std::string _selectResponse(int, bool, ClientData*, const HttpRequest&);
+    void _queueResponse(int, ClientData*, const std::string&);
 
 public:
     EpollServer();
     ~EpollServer();
 
-    void addServer(ServerConfig &config, int port);
+    void addServer(ServerConfig *config, int port);
     void run();
 };
