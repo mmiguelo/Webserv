@@ -203,6 +203,10 @@ std::string HttpResponse::buildAutoIndex(const HttpRequest& request, const std::
 
 std::string HttpResponse::buildFromDirectory(const HttpRequest& request, const std::string& dirPath, bool autoindex)
 {
+    _version = request.getVersion();
+    if (_version.empty())
+        _version = "HTTP/1.1";
+
     const std::string& uriPath = request.getPath();
 
     // Redirect to slash-appended URI for directories
@@ -287,7 +291,8 @@ std::string HttpResponse::buildError(int statusCode, const HttpRequest& request)
 std::string HttpResponse::serialize(HttpMethod method) const {
     std::ostringstream oss;
 
-    oss << _version << " " << _statusCode << " " << getStatusMessage(_statusCode) << "\r\n";
+    const std::string httpVersion = _version.empty() ? "HTTP/1.1" : _version;
+    oss << httpVersion << " " << _statusCode << " " << getStatusMessage(_statusCode) << "\r\n";
     oss << "Server: WebServ\r\n";
     oss << "Date: " << httpDate() << "\r\n";
     if (!_contentType.empty())

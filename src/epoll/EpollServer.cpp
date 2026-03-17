@@ -229,7 +229,7 @@ void EpollServer::_createResponse(int fd, bool complete, ClientData &data)
                 response.setLocation(match.redirectTarget);
                 responseStr = response.serialize(request.getMethod());
             }
-            if (match.errorCode == 405) {
+            else if (match.errorCode == 405) {
                 response.build(405, "", "", request.getVersion());
                 response.setAllow(match.location->methods); // allowed methods
                 responseStr = response.serialize(request.getMethod());
