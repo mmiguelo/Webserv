@@ -27,6 +27,8 @@ void ConfigParser::parseLocation(ServerConfig &serverBlock)
 			parseCgiExt(location);
 		else if (matchWord("index"))
 			parseLocationIndex(location);
+		else if (matchWord("error_page"))
+			parseLocationError(location);
 		else if (matchWord("return"))
 			parseReturn(location);
 		else

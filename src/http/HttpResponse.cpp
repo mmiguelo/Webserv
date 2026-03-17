@@ -1,8 +1,12 @@
 #include "HttpResponse.hpp"
 #include "HttpRequest.hpp"
 #include "HttpRouter.hpp"
+#include <sys/types.h>
+#include <dirent.h>
 #include <sys/stat.h>
+#include <sstream>
 #include <unistd.h>
+#include <algorithm>
 
 //define the static member
 std::map<int, std::string> HttpResponse::_codeMsg;
@@ -117,8 +121,8 @@ int HttpResponse::checkFile(const std::string& path) const {
 
     if (stat(path.c_str(), &st) != 0)
         return 404; // Not Found
-    if(S_ISDIR(st.st_mode)) //is a directory
-        return 300; //
+    if(S_ISDIR(st.st_mode))
+        return 300; // Special code to indicate it's a directory
     if (!(S_ISREG(st.st_mode))) //is not a reg file
         return 500;
     if (access(path.c_str(), R_OK) != 0) //if a dir then can i read it?
@@ -127,6 +131,108 @@ int HttpResponse::checkFile(const std::string& path) const {
     if (!file.is_open())
         return 500; // other
     return 200; // OK
+}
+
+std::string HttpResponse::buildAutoIndex(const HttpRequest& request, const std::string& dirPath) {
+
+    DIR* dir = opendir(dirPath.c_str());
+    std::cout << "Building autoindex for directory: " << dirPath << std::endl;
+    if (!dir)
+        return buildError(403, request);
+    
+    std::vector<std::string> entries;
+    struct dirent* entry; //this struct holds info about one directory entry. for example d_name (the filename)
+    
+    while ((entry = readdir(dir)) != NULL) 
+    //readdir returns NULL when there are no more entries and it reads one entry each call
+    {
+        std::string name = entry->d_name;
+        if (name == "." || name == "..")
+            continue;
+        // skips the current and parent directory entries
+        
+        struct stat st;
+        if (stat((dirPath + "/" + name).c_str(), &st) != 0)
+            continue;
+        if (S_ISDIR(st.st_mode))
+            entries.push_back(name + "/");
+        else
+            entries.push_back(name);
+    }
+    closedir(dir);
+
+    std::sort(entries.begin(), entries.end());
+
+    const std::string& uriPath = request.getPath();
+    std::ostringstream fileList;
+
+    if (uriPath != "/")
+        fileList << "<a href=\"../\">../</a>\n";
+    // Add a "go up" link to the parent directory
+    // Only if we're not already at the root — root has no parent to go to
+
+    for (size_t i = 0; i < entries.size(); i++) {
+        std::string name = entries[i];
+        std::string href = uriPath + name;
+        fileList << "<a href=\"" << href << "\">" << name << "</a>\n";
+    }
+
+    for (size_t i = 0; i < entries.size(); i++)
+        std::cout << entries[i] << std::endl;
+
+    std::string templateHtml = _readFile("www/html/autoindex.html");
+    if (templateHtml.empty()) {
+        templateHtml = "<!DOCTYPE html><html><body>"
+                       "<h1>Index of {{URI_PATH}}</h1><hr><pre>"
+                       "{{FILE_LIST}}"
+                       "</pre><hr></body></html>";
+    }
+
+    templateHtml = replaceAll(templateHtml, "{{URI_PATH}}", uriPath);
+    templateHtml = replaceAll(templateHtml, "{{FILE_LIST}}", fileList.str());
+
+    _statusCode = 200;
+    _body = templateHtml;
+    _contentType = "text/html; charset=utf-8";
+    _version = request.getVersion();
+    if (_version.empty())
+        _version = "HTTP/1.1";
+    
+    return serialize(request.getMethod());
+}
+
+std::string HttpResponse::buildFromDirectory(const HttpRequest& request, const std::string& dirPath, bool autoindex)
+{
+    _version = request.getVersion();
+    if (_version.empty())
+        _version = "HTTP/1.1";
+
+    const std::string& uriPath = request.getPath();
+
+    // Redirect to slash-appended URI for directories
+    if (uriPath.empty() || uriPath[uriPath.size() - 1] != '/')
+    {
+        _statusCode = 301;
+        _body.clear();
+        _contentType.clear();
+        setLocation(uriPath + "/");
+        return serialize(request.getMethod());
+    }
+
+    // Try to serve index.html inside dir
+    std::string indexPath = dirPath;
+    if (indexPath[indexPath.size() - 1] != '/')
+        indexPath += '/';
+    indexPath += "index.html";
+
+    if (checkFile(indexPath) == 200)
+        return buildFromFile(request, indexPath);
+    
+    if (autoindex)
+        return buildAutoIndex(request, dirPath);
+
+    // No index.html and no autoindex support here yet
+    return buildError(403, request);
 }
 
 std::string HttpResponse::buildFromFile(const HttpRequest& request, const std::string& filePath) {
@@ -140,34 +246,15 @@ std::string HttpResponse::buildFromFile(const HttpRequest& request, const std::s
     // If path ends with /, try to serve index.html
     if (!path.empty() && path[path.size() - 1] == '/')
         path += "index.html";
-    // If path is a directory without trailing slash, try index.html
-    else if (_fileExists(path + "/index.html"))
-        path += "/index.html";
 
     int checkError = checkFile(path);
-    if (checkError == 404 || checkError == 403 || checkError == 500)
+    if (checkError != 200)
         return buildError(checkError, request);
 
-    else if (checkError == 300) {
-        // option 1: redirect if path does not end with '/'
-        if (path[path.size() - 1] != '/') {
-            _statusCode = 301;
-            path += '/';
-            return serialize(request.getMethod());
-        }
-        // option 2: try to serve index.html inside dir
-        std::string indexPath = filePath + "index.html";
-        int indexCheck = checkFile(indexPath);
-        if (indexCheck == 200)
-            path = indexPath;
-        else
-            return buildError(403, request); // Forbidden if no index.html in dir
-    }
     _body = _readFile(path);
     _contentType = _getMimeType(path);
     _statusCode = 200;
     return serialize(request.getMethod());
-
 }
 
 std::string HttpResponse::buildError(int statusCode, const HttpRequest& request) {
@@ -204,7 +291,8 @@ std::string HttpResponse::buildError(int statusCode, const HttpRequest& request)
 std::string HttpResponse::serialize(HttpMethod method) const {
     std::ostringstream oss;
 
-    oss << _version << " " << _statusCode << " " << getStatusMessage(_statusCode) << "\r\n";
+    const std::string httpVersion = _version.empty() ? "HTTP/1.1" : _version;
+    oss << httpVersion << " " << _statusCode << " " << getStatusMessage(_statusCode) << "\r\n";
     oss << "Server: WebServ\r\n";
     oss << "Date: " << httpDate() << "\r\n";
     if (!_contentType.empty())

@@ -1,0 +1,183 @@
+# yaml
+name: T3.3 - Autoindex & Error Page Integration Tests
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  gate:
+    name: Check PR Title
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Validate PR Title
+        id: check
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+
+          if ! echo "$TITLE" | grep -qE "^T[0-9]+\.[0-9]+"; then
+            echo "FAIL: PR title does not match the required format 'T[sprint].[task] - [description]'"
+            exit 1
+          fi
+
+          PR_SPRINT=$(echo "$TITLE" | grep -oP "^T\K[0-9]+(?=\.)")
+          PR_TASK=$(echo "$TITLE" | grep -oP "^T[0-9]+\.\K[0-9]+")
+
+          SPRINT=3
+          TASK=3
+
+          if [ "$PR_SPRINT" -gt "$SPRINT" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          elif [ "$PR_SPRINT" -eq "$SPRINT" ] && [ "$PR_TASK" -ge "$TASK" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "SKIP: PR T${PR_SPRINT}.${PR_TASK} does not require T${SPRINT}.${TASK} tests"
+          fi
+
+  Task_3-3_Autoindex_ErrorPages_Tests:
+    name: Task 3.3 Autoindex & Error Pages Tests
+    needs: gate
+    if: needs.gate.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:latest
+      options: --cap-add=SYS_PTRACE
+    steps:
+      - name: Install dependencies
+        run: apt-get update && apt-get install -y make g++ curl netcat-openbsd procps iproute2 file
+
+      - uses: actions/checkout@v4
+
+      # BUILD
+      - name: Compile
+        run: make
+
+      - name: Verify binary exists
+        run: test -f ./webserv && echo "Binary exists"
+
+      # PREPARE FIXTURES
+      - name: Prepare test fixtures
+        run: |
+          mkdir -p config www/auto www/noindex www/withindex www/errors
+
+          # Create files in non-sorted order to verify sorting
+          echo 'content b' > www/auto/b.txt
+          echo 'content a' > www/auto/a.txt
+
+          # noindex directory intentionally left without index
+
+          # withindex has index.html
+          echo '<!DOCTYPE html><html><body>Index page</body></html>' > www/withindex/index.html
+
+          # custom 404 page exists for one location
+          echo '<!DOCTYPE html><html><body>Custom 404 Page</body></html>' > www/errors/custom_404.html
+
+      - name: Write config for autoindex and error pages
+        run: |
+          cat > config/dir.conf << 'EOF'
+          server {
+              listen 127.0.0.1:8080;
+              root www;
+
+              location /auto/ {
+                  root www/auto;
+                  autoindex on;
+              }
+
+              location /noindex/ {
+                  autoindex off;
+              }
+
+              location /withindex/ {
+                  root www/withindex;
+                  index index.html;
+              }
+
+              location /custom404/ {
+                  root www/errors;
+                  error_page 404 /errors/custom_404.html;
+              }
+
+              location /missing404/ {
+                  root www/errors;
+                  error_page 404 /errors/missing_404.html;
+              }
+          }
+          EOF
+
+      - name: Start server
+        run: |
+          ./webserv config/dir.conf > /tmp/webserv.log 2>&1 &
+          echo $! > /tmp/webserv.pid
+          for i in $(seq 1 30); do
+            C=$(curl -s -o /dev/null -w "%{http_code}" --max-time 1 http://127.0.0.1:8080/withindex/ || true)
+            [ "$C" != "000" ] && break
+            sleep 0.2
+          done
+
+      # TEST 1: Directory URI, autoindex on, no index file => HTML listing sorted
+      - name: "Test 1: autoindex on returns alphabetical listing"
+        run: |
+          curl -s http://127.0.0.1:8080/auto/ -o /tmp/auto.html
+          grep -q "a.txt" /tmp/auto.html || (echo "FAIL: a.txt not listed"; cat /tmp/auto.html; exit 1)
+          grep -q "b.txt" /tmp/auto.html || (echo "FAIL: b.txt not listed"; cat /tmp/auto.html; exit 1)
+          POS_A=$(grep -b -o "a.txt" /tmp/auto.html | head -n1 | cut -d: -f1)
+          POS_B=$(grep -b -o "b.txt" /tmp/auto.html | head -n1 | cut -d: -f1)
+          [ "$POS_A" -lt "$POS_B" ] || (echo "FAIL: Listing not alphabetical"; cat /tmp/auto.html; exit 1)
+
+      # TEST 2: Directory URI, autoindex off, no index file => 403
+      - name: "Test 2: autoindex off returns 403 Forbidden"
+        run: |
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/noindex/)
+          [ "$CODE" = "403" ] || (echo "FAIL: Expected 403, got $CODE"; exit 1)
+
+      # TEST 3: Directory URI with index file present => serves index file
+      - name: "Test 3: Directory with index serves index.html"
+        run: |
+          curl -s http://127.0.0.1:8080/withindex/ -o /tmp/index_body.html
+          grep -q "Index page" /tmp/index_body.html || (echo "FAIL: index page not served"; cat /tmp/index_body.html; exit 1)
+
+      # TEST 4: /withindex without trailing slash => 301 redirect to /withindex/
+      - name: "Test 4: Request without trailing slash redirects with 301"
+        run: |
+          curl -s -D /tmp/headers.txt -o /dev/null http://127.0.0.1:8080/withindex
+          grep -i "^HTTP/" /tmp/headers.txt | head -n1 | grep -q "301" || (echo "FAIL: Expected 301 status"; cat /tmp/headers.txt; exit 1)
+          grep -i "^Location: .*\/withindex\/" /tmp/headers.txt || (echo "FAIL: Location header missing or incorrect"; cat /tmp/headers.txt; exit 1)
+
+      # TEST 5: Custom 404 configured but missing => built-in fallback with 404 status
+      - name: "Test 5: Missing custom 404 yields built-in fallback with 404"
+        run: |
+          curl -s -D /tmp/headers.txt http://127.0.0.1:8080/missing404/doesnotexist -o /tmp/body.txt
+          grep -i "^HTTP/" /tmp/headers.txt | head -n1 | grep -q "404" || (echo "FAIL: Expected 404 status"; cat /tmp/headers.txt; exit 1)
+          # Built-in fallback should include the numeric code and a reason phrase like "Not Found"
+          cat /tmp/body.txt
+          grep -q "404" /tmp/body.txt || (echo "FAIL: fallback body does not contain code 404"; cat /tmp/body.txt; exit 1)
+          if grep -q "Custom 404 Page" /tmp/body.txt; then
+            echo "FAIL: custom page unexpectedly present"
+            cat /tmp/body.txt
+            exit 1
+          fi
+
+      # TEST 6: Custom 404 page configured and exists => returned with 404 status
+      - name: "Test 6: Custom 404 page returned with 404 status"
+        run: |
+          curl -s -D /tmp/headers.txt http://127.0.0.1:8080/custom404/doesnotexist -o /tmp/body.txt
+          grep -i "^HTTP/" /tmp/headers.txt | head -n1 | grep -q "404" || (echo "FAIL: Expected 404 status"; cat /tmp/headers.txt; exit 1)
+          if grep -q "Custom 404 Page" /tmp/body.txt; then
+            echo "FAIL: Custom 404 body not returned"
+            cat /tmp/body.txt
+            exit 1
+          fi
+
+      # TEARDOWN
+      - name: Teardown
+        if: always()
+        run: |
+          PID=$(cat /tmp/webserv.pid 2>/dev/null) && kill $PID 2>/dev/null || true
+          sleep 1
+          PID=$(cat /tmp/webserv.pid 2>/dev/null) && kill -9 $PID 2>/dev/null || true
+          rm -f /tmp/webserv.pid /tmp/webserv.log
+          chmod 644 www/forbidden.txt || true

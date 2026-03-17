@@ -6,6 +6,7 @@
 #include "utils.hpp"
 #include <fstream>
 #include <sstream>
+#include <sys/stat.h>
 
 EpollServer::EpollServer() : _epollFd(-1)
 {

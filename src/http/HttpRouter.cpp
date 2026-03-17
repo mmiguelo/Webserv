@@ -41,6 +41,7 @@ HttpRouteMatch HttpRouter::route(const HttpRequest& request, const ServerConfig&
 		match.executeCGI = true;
 		match.cgiInterpreter = cgiInterpreter;
 	}
+	match.autoindex = bestLocation->autoindex;
 	match.errorCode = 0;
 	return match;
 }

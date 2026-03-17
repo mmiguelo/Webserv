@@ -39,6 +39,7 @@ void Validator::validateLocation(const LocationConfig &location)
 	validateLocationUpload(location);
 	validateLocationCgi(location);
 	validateLocationRedirect(location);
+	validateLocationError(location);
 }
 
 void Validator::checkDuplicatePorts(const std::map<int, std::vector<ServerConfig> > &servers)
@@ -262,5 +263,17 @@ void Validator::validateLocationRedirect(const LocationConfig &location)
 	{
 		if (location.redirect_url[0] != '/' && location.redirect_url.find("http://") != 0 && location.redirect_url.find("https://") != 0)
 			throw std::runtime_error("Redirect URL must be an absolute path or start with http:// or https://.");
+	}
+}
+
+void Validator::validateLocationError(const LocationConfig &location)
+{
+	const std::map<int, std::string> &errorPages = location.error_page;
+	for (std::map<int, std::string>::const_iterator it = errorPages.begin();
+		 it != errorPages.end(); ++it)
+	{
+		int code = it->first;
+		if (code < 100 || code > 599)
+			throw std::runtime_error("Invalid HTTP status code in location error_page directive.");
 	}
 }
