@@ -101,7 +101,6 @@ jobs:
               }
 
               location /missing404/ {
-                  root www/errors;
                   error_page 404 /errors/missing_404.html;
               }
           }
