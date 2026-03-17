@@ -154,7 +154,11 @@ jobs:
           # Built-in fallback should include the numeric code and a reason phrase like "Not Found"
           cat /tmp/body.txt
           grep -q "404" /tmp/body.txt || (echo "FAIL: fallback body does not contain code 404"; cat /tmp/body.txt; exit 1)
-          echo "$([ $(grep -q "Custom 404 Page" /tmp/body.txt; echo $?) -eq 1 ] && echo "OK" || echo "FAIL")" | grep -q "OK" || (echo "FAIL: custom page unexpectedly present"; cat /tmp/body.txt; exit 1)
+          if grep -q "Custom 404 Page" /tmp/body.txt; then
+            echo "FAIL: custom page unexpectedly present"
+            cat /tmp/body.txt
+            exit 1
+          fi
 
       # TEST 6: Custom 404 page configured and exists => returned with 404 status
       - name: "Test 6: Custom 404 page returned with 404 status"
