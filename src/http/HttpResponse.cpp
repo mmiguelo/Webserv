@@ -135,6 +135,7 @@ int HttpResponse::checkFile(const std::string& path) const {
 std::string HttpResponse::buildAutoIndex(const HttpRequest& request, const std::string& dirPath) {
 
     DIR* dir = opendir(dirPath.c_str());
+    std::cout << "Building autoindex for directory: " << dirPath << std::endl;
     if (!dir)
         return buildError(403, request);
     

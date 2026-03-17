@@ -29,6 +29,7 @@ private:
 	static void validateLocationUpload(const LocationConfig &location);
 	static void validateLocationCgi(const LocationConfig &location);
 	static void validateLocationRedirect(const LocationConfig &location);
+	static void validateLocationError(const LocationConfig &location);
 
 public:
 	static void validate(const std::map<int, std::vector<ServerConfig> > &servers); // vector pois pode haver mais que 1 server block no config file

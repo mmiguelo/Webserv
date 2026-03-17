@@ -14,7 +14,8 @@ struct LocationConfig {
 	bool autoindex;										//opcional
 	std::vector<std::string> methods;					//opcional
 	std::map<std::string, std::string> cgi_ext;			//opcional
-	
+	std::map<int, std::string> error_page;
+
 	std::string redirect_url;							//opcional
 	int redirect_code;									//default 0
 	bool has_redirect;

@@ -31,6 +31,7 @@ class ConfigParser {
 		void parseCgiExt(LocationConfig &location);
 		void parseReturn(LocationConfig &location);
 		void parseLocationIndex(LocationConfig &location);
+		void parseLocationError(LocationConfig &location);
 
 		// aux functions
 		const Token &peek() const;				 // retorna o token atual

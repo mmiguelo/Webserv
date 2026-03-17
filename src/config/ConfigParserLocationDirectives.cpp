@@ -75,3 +75,20 @@ void ConfigParser::parseLocationIndex(LocationConfig &location)
 
 	expect(SEMICOLON);
 }
+
+void ConfigParser::parseLocationError(LocationConfig &location) {
+	std::vector<int> codes;
+
+	while (peek().type == WORD && isNumber(peek().value)) {
+		std::string codeStr = expectWord();
+		int code = std::atoi(codeStr.c_str());
+		if (code < 100 || code > 599)
+			throw parseError("Invalid error code: " + codeStr);
+		codes.push_back(code);
+	}
+
+	std::string path = expectWord(); //depois recebemos o path
+	for (size_t i = 0; i < codes.size(); ++i)
+		location.error_page[codes[i]] = path; //atribuimos o código e o path ao serverBlock
+	expect(SEMICOLON);
+}
