@@ -92,14 +92,17 @@ jobs:
               }
 
               location /withindex/ {
+                  root www/withindex;
                   index index.html;
               }
 
               location /custom404/ {
+                  root www/errors;
                   error_page 404 /errors/custom_404.html;
               }
 
               location /missing404/ {
+                  root www/errors;
                   error_page 404 /errors/missing_404.html;
               }
           }
