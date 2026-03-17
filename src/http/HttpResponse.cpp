@@ -238,6 +238,7 @@ std::string HttpResponse::buildFromFile(const HttpRequest& request, const std::s
         _version = "HTTP/1.1";
 
     std::string path = filePath;
+
     // If path ends with /, try to serve index.html
     if (!path.empty() && path[path.size() - 1] == '/')
         path += "index.html";
