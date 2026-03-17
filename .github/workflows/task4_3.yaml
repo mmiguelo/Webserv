@@ -1,0 +1,144 @@
+# yaml
+name: T4.3 - Integration & Upload Limits Tests
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  gate:
+    name: Check PR Title
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Validate PR Title
+        id: check
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+
+          if ! echo "$TITLE" | grep -qE "^T[0-9]+\.[0-9]+"; then
+            echo "FAIL: PR title does not match the required format 'T[sprint].[task] - [description]'"
+            exit 1
+          fi
+
+          PR_SPRINT=$(echo "$TITLE" | grep -oP "^T\K[0-9]+(?=\.)")
+          PR_TASK=$(echo "$TITLE" | grep -oP "^T[0-9]+\.\K[0-9]+")
+
+          SPRINT=4
+          TASK=3
+
+          if [ "$PR_SPRINT" -gt "$SPRINT" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          elif [ "$PR_SPRINT" -eq "$SPRINT" ] && [ "$PR_TASK" -ge "$TASK" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "SKIP: PR T${PR_SPRINT}.${PR_TASK} does not require T${SPRINT}.${TASK} tests"
+          fi
+
+  Task_4-3_Integration_Upload_Limits:
+    name: Task 4.3 Integration & Upload Limits
+    needs: gate
+    if: needs.gate.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:latest
+      options: --cap-add=SYS_PTRACE
+    steps:
+      - name: Install dependencies
+        run: apt-get update && apt-get install -y make g++ curl netcat-openbsd procps iproute2 python3 python3-pip file
+
+      - uses: actions/checkout@v4
+
+      # BUILD
+      - name: Compile
+        run: make
+
+      - name: Verify binary exists
+        run: test -f ./webserv && echo "Binary exists"
+
+      # PREPARE FIXTURES
+      - name: Prepare test fixtures
+        run: |
+          mkdir -p config www/upload www/getonly
+          echo '<!DOCTYPE html><html><body>Home</body></html>' > www/index.html
+          echo '<!DOCTYPE html><html><body>Get-only file</body></html>' > www/getonly/test_read.txt
+
+      - name: Write config for upload limits and GET-only
+        run: |
+          cat > config/integration.conf << 'EOF'
+          server {
+              listen 127.0.0.1:8080;
+              root www;
+
+              location /upload/ {
+                  upload_dir uploads;
+                  methods POST DELETE;
+                  client_max_body_size 10485760; # 10MB
+              }
+
+              location /getonly/ {
+                  root www/getonly;
+                  methods GET;
+              }
+          }
+          EOF
+
+      - name: Start server
+        run: |
+          ./webserv config/integration.conf > /tmp/webserv.log 2>&1 &
+          echo $! > /tmp/webserv.pid
+          for i in $(seq 1 30); do
+            C=$(curl -s -o /dev/null -w "%{http_code}" --max-time 1 http://127.0.0.1:8080/ || true)
+            [ "$C" != "000" ] && break
+            sleep 0.2
+          done
+
+      # TEST A: Run python integration test script if present
+      - name: "Test 1: Run python3 test_integration.py (if present)"
+        run: |
+          if [ -f test_integration.py ]; then
+            python3 test_integration.py
+            echo "python integration tests passed"
+          else
+            echo "SKIP: test_integration.py not present"; exit 0
+          fi
+
+      # TEST B: Upload 1MB, 5MB, 11MB checks (limit=10MB)
+      - name: "Test 2: Upload size limits 1MB,5MB,11MB"
+        run: |
+          mkdir -p uploads
+          head -c 1M /dev/urandom > /tmp/up_1m.bin
+          head -c 5M /dev/urandom > /tmp/up_5m.bin
+          head -c 11M /dev/urandom > /tmp/up_11m.bin
+
+          CODE1=$(curl -s -o /dev/null -w "%{http_code}" -F "file=@/tmp/up_1m.bin" http://127.0.0.1:8080/upload/)
+          [ "$CODE1" = "201" ] || (echo "FAIL: 1MB upload expected 201, got $CODE1"; tail -n +1 /tmp/webserv.log; exit 1)
+
+          CODE2=$(curl -s -o /dev/null -w "%{http_code}" -F "file=@/tmp/up_5m.bin" http://127.0.0.1:8080/upload/)
+          [ "$CODE2" = "201" ] || (echo "FAIL: 5MB upload expected 201, got $CODE2"; tail -n +1 /tmp/webserv.log; exit 1)
+
+          CODE3=$(curl -s -o /dev/null -w "%{http_code}" -F "file=@/tmp/up_11m.bin" http://127.0.0.1:8080/upload/)
+          [ "$CODE3" = "413" ] || (echo "FAIL: 11MB upload expected 413, got $CODE3"; tail -n +1 /tmp/webserv.log; exit 1)
+
+      # TEST C: DELETE on GET-only location should return 405 with Allow: GET
+      - name: "Test 3: DELETE on GET-only returns 405 and Allow: GET"
+        run: |
+          # Request DELETE on an existing file in GET-only location
+          curl -s -D /tmp/getonly_headers.txt -o /tmp/getonly_body.txt -X DELETE http://127.0.0.1:8080/getonly/test_read.txt || true
+          # Check status code in headers
+          grep -i "^HTTP/" /tmp/getonly_headers.txt | head -n1 | grep -q "405" || (echo "FAIL: Expected 405 status"; sed -n '1,200p' /tmp/getonly_headers.txt; exit 1)
+          # Check Allow header contains GET
+          grep -i "^Allow: *GET" /tmp/getonly_headers.txt || (echo "FAIL: Allow header missing or incorrect"; sed -n '1,200p' /tmp/getonly_headers.txt; exit 1)
+
+      # TEARDOWN
+      - name: Teardown
+        if: always()
+        run: |
+          PID=$(cat /tmp/webserv.pid 2>/dev/null) && kill $PID 2>/dev/null || true
+          sleep 1
+          PID=$(cat /tmp/webserv.pid 2>/dev/null) && kill -9 $PID 2>/dev/null || true
+          rm -f /tmp/webserv.pid /tmp/webserv.log || true
+          rm -f /tmp/up_1m.bin /tmp/up_5m.bin /tmp/up_11m.bin || true
+          rm -rf uploads || true
