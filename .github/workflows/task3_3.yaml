@@ -83,6 +83,7 @@ jobs:
               root www;
 
               location /auto/ {
+                  root www/auto;
                   autoindex on;
               }
 
