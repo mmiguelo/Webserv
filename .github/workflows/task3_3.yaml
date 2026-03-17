@@ -97,7 +97,6 @@ jobs:
               }
 
               location /custom404/ {
-                  root www/errors;
                   error_page 404 /errors/custom_404.html;
               }
 
