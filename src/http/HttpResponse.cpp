@@ -175,6 +175,9 @@ std::string HttpResponse::buildAutoIndex(const HttpRequest& request, const std::
         fileList << "<a href=\"" << href << "\">" << name << "</a>\n";
     }
 
+    for (size_t i = 0; i < entries.size(); i++)
+        std::cout << entries[i] << std::endl;
+
     std::string templateHtml = _readFile("www/html/autoindex.html");
     if (templateHtml.empty()) {
         templateHtml = "<!DOCTYPE html><html><body>"
