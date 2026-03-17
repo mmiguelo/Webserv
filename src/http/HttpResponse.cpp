@@ -138,8 +138,7 @@ std::string HttpResponse::buildAutoIndex(const HttpRequest& request, const std::
     if (!dir)
         return buildError(403, request);
     
-    std::vector<std::string> dirs;
-    std::vector<std::string> files;
+    std::vector<std::string> entries;
     struct dirent* entry; //this struct holds info about one directory entry. for example d_name (the filename)
     
     while ((entry = readdir(dir)) != NULL) 
@@ -154,14 +153,13 @@ std::string HttpResponse::buildAutoIndex(const HttpRequest& request, const std::
         if (stat((dirPath + "/" + name).c_str(), &st) != 0)
             continue;
         if (S_ISDIR(st.st_mode))
-            dirs.push_back(name);
+            entries.push_back(name + "/");
         else
-            files.push_back(name);
+            entries.push_back(name);
     }
     closedir(dir);
 
-    std::sort(dirs.begin(), dirs.end());
-    std::sort(files.begin(), files.end());
+    std::sort(entries.begin(), entries.end());
 
     const std::string& uriPath = request.getPath();
     std::ostringstream fileList;
@@ -171,14 +169,11 @@ std::string HttpResponse::buildAutoIndex(const HttpRequest& request, const std::
     // Add a "go up" link to the parent directory
     // Only if we're not already at the root — root has no parent to go to
 
-    for (size_t i = 0; i < dirs.size(); i++)
-        fileList << "<a href=\"" << uriPath << dirs[i] << "/\">" << dirs[i] << "/</a>\n";
-    // Each dir link:
-    // href = full URI path so the browser navigates correctly e.g. "/uploads/photos/"
-
-    for (size_t i = 0; i < files.size(); i++)
-        fileList << "<a href=\"" << uriPath << files[i] << "\">" << files[i] << "</a>\n";
-    // Same for files but no trailing slash on either href
+    for (size_t i = 0; i < entries.size(); i++) {
+        std::string name = entries[i];
+        std::string href = uriPath + name;
+        fileList << "<a href=\"" << href << "\">" << name << "</a>\n";
+    }
 
     std::string templateHtml = _readFile("www/html/autoindex.html");
     if (templateHtml.empty()) {
