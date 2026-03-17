@@ -11,8 +11,9 @@ struct HttpRouteMatch {
 	std::string cgiInterpreter; //se executeCGI for true, aqui fica o caminho do interpretador CGI a usar
 	int errorCode; //0 se não houver erro, ou o código de erro HTTP a retornar
 	std::string redirectTarget; //se for um redirect, aqui fica a URL de destino
+	bool autoindex; 
 
-	HttpRouteMatch() : location(NULL), executeCGI(false), errorCode(0) {};
+	HttpRouteMatch() : location(NULL), executeCGI(false), errorCode(0), autoindex(false) {};
 };
 
 #endif

@@ -39,6 +39,8 @@ class HttpResponse {
         void build(int statusCode, const std::string& body, const std::string& contentType, const std::string& version);
         std::string buildError(int statusCode, const HttpRequest& request);
         std::string buildFromFile(const HttpRequest& request, const std::string& filePath);
+        std::string buildFromDirectory(const HttpRequest& request, const std::string& dirPath, bool autoindex);
+        std::string buildAutoIndex(const HttpRequest& request, const std::string& dirPath);
         std::string serialize(HttpMethod method) const;
 
         const std::string& getStatusMessage(int code) const;
