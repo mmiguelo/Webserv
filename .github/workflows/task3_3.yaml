@@ -152,6 +152,7 @@ jobs:
           curl -s -D /tmp/headers.txt http://127.0.0.1:8080/missing404/doesnotexist -o /tmp/body.txt
           grep -i "^HTTP/" /tmp/headers.txt | head -n1 | grep -q "404" || (echo "FAIL: Expected 404 status"; cat /tmp/headers.txt; exit 1)
           # Built-in fallback should include the numeric code and a reason phrase like "Not Found"
+          cat /tmp/body.txt
           grep -q "404" /tmp/body.txt || (echo "FAIL: fallback body does not contain code 404"; cat /tmp/body.txt; exit 1)
           echo "$([ $(grep -q "Custom 404 Page" /tmp/body.txt; echo $?) -eq 1 ] && echo "OK" || echo "FAIL")" | grep -q "OK" || (echo "FAIL: custom page unexpectedly present"; cat /tmp/body.txt; exit 1)
 
