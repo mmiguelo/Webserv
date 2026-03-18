@@ -221,7 +221,7 @@ void EpollServer::_createResponse(int fd, bool complete, ClientData &data)
             // Get the root directory from config
             ServerConfig* config = _fdToConfig[data.server_fd];
             
-            // PARTE NOVA COM O ROUTER
+            //ROUTER PARSER
             HttpRouter router;
             HttpRouteMatch match = router.route(request, *config);
             if (match.errorCode == 301 || match.errorCode == 302) {
@@ -243,10 +243,19 @@ void EpollServer::_createResponse(int fd, bool complete, ClientData &data)
             else
             {
                 struct stat st;
-                if (stat(match.path.c_str(), &st) == 0 && S_ISDIR(st.st_mode))
-                    responseStr = response.buildFromDirectory(request, match.path, match.autoindex);
-                else
-                    responseStr = response.buildFromFile(request, match.path);
+                int result;
+                if (stat(match.path.c_str(), &st) != 0)
+                    responseStr = response.buildError(404, request);
+                else {
+                    result = response.checkFile(match.path, st);
+
+                    if (request.getMethod() == METHOD_DELETE)
+                        responseStr = response.handleDelete(request, match.path, result);
+                    else if (result == 300)
+                        responseStr = response.buildFromDirectory(request, match.path, match.autoindex, result);
+                    else
+                        responseStr = response.buildFromFile(request, match.path, result);
+                }
             }
         }
     }

@@ -108,27 +108,25 @@ std::string HttpResponse::replaceAll(std::string str, const std::string& from, c
     return str;
 }
 
-std::string HttpResponse::_readFile(const std::string& path) const {
-    std::ifstream file(path.c_str(), std::ios::in | std::ios::binary);
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    return buffer.str();
-}
-
-int HttpResponse::checkFile(const std::string& path) const {
-    struct stat st;
-
-    if (stat(path.c_str(), &st) != 0)
-        return 404; // Not Found
-    if(S_ISDIR(st.st_mode))
-        return 300; // Special code to indicate it's a directory
-    if (!(S_ISREG(st.st_mode))) //is not a reg file
-        return 500;
-    if (access(path.c_str(), R_OK) != 0) //if a dir then can i read it?
-        return 403; // Forbidden
+bool HttpResponse::_readFile(const std::string& path, std::string& out) const {
     std::ifstream file(path.c_str(), std::ios::binary);
     if (!file.is_open())
-        return 500; // other
+        return false;
+
+    std::ostringstream buffer;
+    buffer << file.rdbuf();
+    out = buffer.str();
+    return true;
+}
+
+int HttpResponse::checkFile(const std::string& path, const struct stat& st) const
+{    
+    if(S_ISDIR(st.st_mode))
+        return 300; // Special code to indicate it's a directory
+
+    if (!(S_ISREG(st.st_mode))) //is not a reg file
+        return 403;
+
     return 200; // OK
 }
 
@@ -179,8 +177,8 @@ std::string HttpResponse::buildAutoIndex(const HttpRequest& request, const std::
     for (size_t i = 0; i < entries.size(); i++)
         std::cout << entries[i] << std::endl;
 
-    std::string templateHtml = _readFile("www/html/autoindex.html");
-    if (templateHtml.empty()) {
+    std::string templateHtml;
+    if (!_readFile("www/html/autoindex.html", templateHtml)) {
         templateHtml = "<!DOCTYPE html><html><body>"
                        "<h1>Index of {{URI_PATH}}</h1><hr><pre>"
                        "{{FILE_LIST}}"
@@ -200,7 +198,7 @@ std::string HttpResponse::buildAutoIndex(const HttpRequest& request, const std::
     return serialize(request.getMethod());
 }
 
-std::string HttpResponse::buildFromDirectory(const HttpRequest& request, const std::string& dirPath, bool autoindex)
+std::string HttpResponse::buildFromDirectory(const HttpRequest& request, const std::string& dirPath, bool autoindex, int checkResult)
 {
     _version = request.getVersion();
     if (_version.empty())
@@ -224,8 +222,14 @@ std::string HttpResponse::buildFromDirectory(const HttpRequest& request, const s
         indexPath += '/';
     indexPath += "index.html";
 
-    if (checkFile(indexPath) == 200)
-        return buildFromFile(request, indexPath);
+    struct stat indexSt;
+
+    if (stat(indexPath.c_str(), &indexSt) == 0)
+    {
+        int indexResult = checkFile(indexPath, indexSt);
+        if (indexResult == 200)
+            return buildFromFile(request, indexPath, indexResult);
+    }
     
     if (autoindex)
         return buildAutoIndex(request, dirPath);
@@ -234,7 +238,7 @@ std::string HttpResponse::buildFromDirectory(const HttpRequest& request, const s
     return buildError(403, request);
 }
 
-std::string HttpResponse::buildFromFile(const HttpRequest& request, const std::string& filePath) {
+std::string HttpResponse::buildFromFile(const HttpRequest& request, const std::string& filePath, int checkResult) {
 
     _version = request.getVersion();
     if (_version.empty())
@@ -246,13 +250,35 @@ std::string HttpResponse::buildFromFile(const HttpRequest& request, const std::s
     if (!path.empty() && path[path.size() - 1] == '/')
         path += "index.html";
 
-    int checkError = checkFile(path);
-    if (checkError != 200)
-        return buildError(checkError, request);
+    if (checkResult != 200)
+        return buildError(checkResult, request);
+    if (!_readFile(path, _body))
+        return buildError(403, request);
 
-    _body = _readFile(path);
     _contentType = _getMimeType(path);
     _statusCode = 200;
+    return serialize(request.getMethod());
+}
+
+std::string HttpResponse::handleDelete(const HttpRequest& request, const std::string& path, int checkResult) {
+    _version = request.getVersion();
+    if (_version.empty())
+        _version = "HTTP/1.1";
+    
+    if (checkResult == 300) {
+        if (rmdir(path.c_str()) != 0)
+            return buildError(403, request); // Forbidden
+    }
+    else if (checkResult == 200) {
+        if (unlink(path.c_str()) != 0)
+            return buildError(403, request); // Forbidden
+    }
+    else
+        return buildError(checkResult, request);
+
+    _statusCode = 204; // No Content
+    _body.clear();
+    _contentType.clear();
     return serialize(request.getMethod());
 }
 
@@ -266,9 +292,8 @@ std::string HttpResponse::buildError(int statusCode, const HttpRequest& request)
     codeStr << statusCode;
 
     // Try to read template file
-    std::string templateHtml = _readFile("www/html/errors/default.html");
-
-    if (templateHtml.empty()) {
+    std::string templateHtml;
+    if (!_readFile("www/html/errors/default.html", templateHtml)) {
         // Protecao caso alguem apague a pasta? nao sei se isto é necessario, mas é melhor do que retornar uma resposta vazia
         std::ostringstream oss;
         oss << "<!DOCTYPE html>\n<html>\n<head><title>"

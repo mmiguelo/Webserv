@@ -21,7 +21,7 @@ class HttpResponse {
         std::string                         _allow;     //TESTE
 
         static void initCodeMsg();
-        std::string _readFile(const std::string& path) const;
+        bool _readFile(const std::string& path, std::string& out) const;
         static std::string replaceAll(std::string str, const std::string& from, const std::string& to);
         std::string httpDate() const;
         static std::string _getMimeType(const std::string& path);
@@ -34,12 +34,13 @@ class HttpResponse {
         HttpResponse(const HttpResponse& other);
         HttpResponse& operator=(const HttpResponse& other);
 
-        int checkFile(const std::string& path) const;
+        int checkFile(const std::string& path, const struct stat& st) const;
 
         void build(int statusCode, const std::string& body, const std::string& contentType, const std::string& version);
         std::string buildError(int statusCode, const HttpRequest& request);
-        std::string buildFromFile(const HttpRequest& request, const std::string& filePath);
-        std::string buildFromDirectory(const HttpRequest& request, const std::string& dirPath, bool autoindex);
+        std::string buildFromFile(const HttpRequest& request, const std::string& filePath, int checkResult);
+        std::string buildFromDirectory(const HttpRequest& request, const std::string& dirPath, bool autoindex, int checkResult);
+        std::string handleDelete(const HttpRequest& request, const std::string& path, int checkResult);
         std::string buildAutoIndex(const HttpRequest& request, const std::string& dirPath);
         std::string serialize(HttpMethod method) const;
 
