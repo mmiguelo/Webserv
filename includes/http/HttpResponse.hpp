@@ -28,6 +28,8 @@ class HttpResponse {
         static std::string _getMimeType(const std::string& path);
         static bool _fileExists(const std::string& path);
         std::string _getErrorPage(int code, const ServerConfig* config);
+        static std::string _sanitizeFilename(const std::string& filename);
+        static bool _writeBinaryFile(const std::string& path, const std::string& data);
 
     public:
         HttpResponse();
@@ -35,13 +37,14 @@ class HttpResponse {
         HttpResponse(const HttpResponse& other);
         HttpResponse& operator=(const HttpResponse& other);
 
-        int checkFile(const std::string& path, const struct stat& st) const;
+        int checkFile(const struct stat& st) const;
 
         void build(int statusCode, const std::string& body, const std::string& contentType, const std::string& version);
         std::string buildError(int statusCode, const HttpRequest& request);
         std::string buildFromFile(const HttpRequest& request, const std::string& filePath, int checkResult);
-        std::string buildFromDirectory(const HttpRequest& request, const std::string& dirPath, bool autoindex, int checkResult);
+        std::string buildFromDirectory(const HttpRequest& request, const std::string& dirPath, bool autoindex);
         std::string handleDelete(const HttpRequest& request, const std::string& path, int checkResult);
+        std::string handleUpload(const HttpRequest& request, const std::string& uploadDir);
         std::string buildAutoIndex(const HttpRequest& request, const std::string& dirPath);
         std::string serialize(HttpMethod method) const;
 

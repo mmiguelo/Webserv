@@ -12,6 +12,7 @@ struct HttpRouteMatch {
 	int errorCode; //0 se não houver erro, ou o código de erro HTTP a retornar
 	std::string redirectTarget; //se for um redirect, aqui fica a URL de destino
 	bool autoindex; 
+	std::string upload_dir;
 
 	HttpRouteMatch() : location(NULL), executeCGI(false), errorCode(0), autoindex(false) {};
 };

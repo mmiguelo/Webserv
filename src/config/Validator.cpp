@@ -3,6 +3,8 @@
 #include <stdexcept>
 #include <cstdlib>
 #include <iostream>
+#include <sys/stat.h>
+#include <unistd.h>
 
 void Validator::validate(const std::map<int, std::vector<ServerConfig> > &servers)
 {
@@ -230,6 +232,13 @@ void Validator::validateLocationUpload(const LocationConfig &location)
 	{
 		if (location.upload_dir[0] != '/')
 			throw std::runtime_error("Upload directory must be absolute.");
+		struct stat st;
+		if (stat(location.upload_dir.c_str(), &st) != 0)
+			throw std::runtime_error("Upload directory does not exist: " + location.upload_dir);
+		if (!S_ISDIR(st.st_mode))
+			throw std::runtime_error("Upload path is not a directory: " + location.upload_dir);
+		if (access(location.upload_dir.c_str(), W_OK) != 0)
+			throw std::runtime_error("Upload directory is not writable: " + location.upload_dir);
 	}
 }
 

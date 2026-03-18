@@ -209,17 +209,24 @@ void EpollClient::_buildRoutedResponse(const HttpRequest &request, HttpResponse 
     }
     else
     {
+        if (request.getMethod() == METHOD_POST && !match.upload_dir.empty())
+        {
+            responseStr = response.handleUpload(request, match.upload_dir);
+            if (response.getStatusCode() >= 400)
+                _closeAfterSend = true;
+            return;
+        }
         struct stat st;
         int result;
         if (stat(match.path.c_str(), &st) != 0)
             responseStr = response.buildError(404, request);
         else {
-            result = response.checkFile(match.path, st);
+            result = response.checkFile(st);
             
             if (request.getMethod() == METHOD_DELETE)
                 responseStr = response.handleDelete(request, match.path, result);
             else if (result == 300)
-                responseStr = response.buildFromDirectory(request, match.path, match.autoindex, result);
+                responseStr = response.buildFromDirectory(request, match.path, match.autoindex);
             else
                 responseStr = response.buildFromFile(request, match.path, result);
             if (response.getStatusCode() >= 400)

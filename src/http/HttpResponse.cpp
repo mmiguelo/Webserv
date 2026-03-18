@@ -7,6 +7,7 @@
 #include <sstream>
 #include <unistd.h>
 #include <algorithm>
+#include "utils.hpp"
 
 //define the static member
 std::map<int, std::string> HttpResponse::_codeMsg;
@@ -93,6 +94,23 @@ bool HttpResponse::_fileExists(const std::string& path)
     return file.good();
 }
 
+std::string HttpResponse::_sanitizeFilename(const std::string& filename)
+{
+    size_t slashPos = filename.rfind('/');
+    if (slashPos == std::string::npos)
+        return filename;
+    return filename.substr(slashPos + 1);
+}
+
+bool HttpResponse::_writeBinaryFile(const std::string& path, const std::string& data)
+{
+    std::ofstream out(path.c_str(), std::ios::binary | std::ios::trunc);
+    if (!out.is_open())
+        return false;
+    out.write(data.data(), data.size());
+    return out.good();
+}
+
 void HttpResponse::build(int statusCode, const std::string& body, const std::string& contentType, const std::string& version) {
     _statusCode = statusCode;
     _body = body;
@@ -120,7 +138,7 @@ bool HttpResponse::_readFile(const std::string& path, std::string& out) const {
     return true;
 }
 
-int HttpResponse::checkFile(const std::string& path, const struct stat& st) const
+int HttpResponse::checkFile(const struct stat& st) const
 {    
     if(S_ISDIR(st.st_mode))
         return 300; // Special code to indicate it's a directory
@@ -199,7 +217,7 @@ std::string HttpResponse::buildAutoIndex(const HttpRequest& request, const std::
     return serialize(request.getMethod());
 }
 
-std::string HttpResponse::buildFromDirectory(const HttpRequest& request, const std::string& dirPath, bool autoindex, int checkResult)
+std::string HttpResponse::buildFromDirectory(const HttpRequest& request, const std::string& dirPath, bool autoindex)
 {
     _version = request.getVersion();
     if (_version.empty())
@@ -227,7 +245,7 @@ std::string HttpResponse::buildFromDirectory(const HttpRequest& request, const s
 
     if (stat(indexPath.c_str(), &indexSt) == 0)
     {
-        int indexResult = checkFile(indexPath, indexSt);
+        int indexResult = checkFile(indexSt);
         if (indexResult == 200)
             return buildFromFile(request, indexPath, indexResult);
     }
@@ -280,6 +298,156 @@ std::string HttpResponse::handleDelete(const HttpRequest& request, const std::st
     _statusCode = 204; // No Content
     _body.clear();
     _contentType.clear();
+    return serialize(request.getMethod());
+}
+
+/* POST /upload HTTP/1.1
+Host: localhost:8080
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryABC123
+Content-Length: 200
+
+------WebKitFormBoundaryABC123
+Content-Disposition: form-data; name="file"; filename="hello.txt"
+Content-Type: text/plain
+
+Hello from webserv!
+------WebKitFormBoundaryABC123-- */
+std::string HttpResponse::handleUpload(const HttpRequest& request, const std::string& uploadDir)
+{
+    _version = request.getVersion();
+    if (_version.empty())
+        _version = "HTTP/1.1";
+
+    std::string contentType = toLowerStr(request.getHeader("content-type"));
+    std::string uploadBase = uploadDir;
+    if (!uploadBase.empty() && uploadBase[uploadBase.size() - 1] != '/')
+        uploadBase += '/';
+
+    std::string uploadedFilename;
+
+    if (contentType.find("multipart/form-data") != std::string::npos)
+    {
+        size_t boundaryPos = contentType.find("boundary=");
+        if (boundaryPos == std::string::npos)
+            return buildError(400, request);
+
+        std::string boundary = contentType.substr(boundaryPos + 9);
+        size_t semicolon = boundary.find(';');
+        if (semicolon != std::string::npos)
+            boundary = boundary.substr(0, semicolon);
+        boundary = trimWhitespace(boundary);
+        if (!boundary.empty() && boundary[0] == '"' && boundary[boundary.size() - 1] == '"')
+            boundary = boundary.substr(1, boundary.size() - 2);
+
+        std::string marker = "--" + boundary;
+        const std::string& body = request.getBody();
+        size_t pos = body.find(marker);
+        while (pos != std::string::npos)
+        {
+            pos += marker.size();
+            if (pos + 2 <= body.size() && body.compare(pos, 2, "--") == 0)
+                break;
+            if (pos + 2 <= body.size() && body.compare(pos, 2, "\r\n") == 0)
+                pos += 2;
+
+            size_t nextBoundary = body.find(marker, pos);
+            if (nextBoundary == std::string::npos)
+                break;
+
+            std::string part = body.substr(pos, nextBoundary - pos);
+            size_t headerEnd = part.find("\r\n\r\n");
+            if (headerEnd == std::string::npos)
+            {
+                pos = nextBoundary;
+                continue;
+            }
+
+            std::string headerBlock = part.substr(0, headerEnd);
+            std::string partBody = part.substr(headerEnd + 4);
+            if (partBody.size() >= 2 && partBody.compare(partBody.size() - 2, 2, "\r\n") == 0)
+                partBody.erase(partBody.size() - 2);
+
+            std::string disposition;
+            std::istringstream headerStream(headerBlock);
+            std::string line;
+            while (std::getline(headerStream, line)) //iterates over header lines
+            {
+                if (!line.empty() && line[line.size() - 1] == '\r')
+                    line.erase(line.size() - 1); //getline removes \n but leaves \r
+                std::string lower = toLowerStr(line);
+                if (lower.find("content-disposition:") == 0)
+                    disposition = line;
+            }
+
+            size_t filenamePos = disposition.find("filename=");
+            if (filenamePos == std::string::npos)
+            {
+                pos = nextBoundary;
+                continue;
+            }
+            filenamePos += 9;
+            std::string filename = disposition.substr(filenamePos);
+            filename = trimWhitespace(filename);
+            if (!filename.empty() && filename[0] == '"')
+            {
+                size_t endQuote = filename.find('"', 1);
+                if (endQuote != std::string::npos)
+                    filename = filename.substr(1, endQuote - 1);
+            }
+            else
+            {
+                size_t endSemi = filename.find(';');
+                if (endSemi != std::string::npos)
+                    filename = filename.substr(0, endSemi);
+            }
+
+            filename = _sanitizeFilename(filename);
+            if (!filename.empty())
+            {
+                std::string outPath = uploadBase + filename;
+                if (_writeBinaryFile(outPath, partBody))
+                    uploadedFilename = filename;
+                else
+                    return buildError(403, request);
+            }
+
+            pos = nextBoundary;
+        }
+    }
+    else
+    {
+        std::string path = request.getPath();
+        if (!path.empty() && path[path.size() - 1] == '/')
+            path.erase(path.size() - 1);
+        size_t slashPos = path.rfind('/');
+        std::string filename;
+
+        if (slashPos == std::string::npos)
+            filename = path;
+        else
+            filename = path.substr(slashPos + 1);
+        filename = _sanitizeFilename(filename);
+        if (filename.empty())
+            filename = "upload.bin";
+
+        std::string outPath = uploadBase + filename;
+        if (!_writeBinaryFile(outPath, request.getBody()))
+            return buildError(403, request);
+        uploadedFilename = filename;
+    }
+
+    if (uploadedFilename.empty())
+        return buildError(400, request);
+
+    std::string location = request.getPath();
+    if (!location.empty() && location[location.size() - 1] != '/')
+        location += "/";
+    location += uploadedFilename;
+
+    _statusCode = 201;
+    _body.clear();
+    _contentType.clear();
+    setLocation(location);
     return serialize(request.getMethod());
 }
 

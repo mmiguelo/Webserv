@@ -42,6 +42,7 @@ HttpRouteMatch HttpRouter::route(const HttpRequest& request, const ServerConfig&
 		match.cgiInterpreter = cgiInterpreter;
 	}
 	match.autoindex = bestLocation->autoindex;
+	match.upload_dir = bestLocation->upload_dir;
 	match.errorCode = 0;
 	return match;
 }
