@@ -56,6 +56,12 @@ const HttpRequest& HttpParser::getRequest() const {
     return _request;
 }
 
+std::string HttpParser::takeBuffer() {
+    std::string tmp = _buffer;
+    _buffer.clear();
+    return tmp;
+}
+
 // Feed raw data into the parser. Returns true ONLY when request is COMPLETE.
 bool HttpParser::feed(const std::string& data, const ServerConfig& serverConfig) {
     _buffer.append(data);

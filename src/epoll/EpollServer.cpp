@@ -1,11 +1,4 @@
 #include "EpollServer.hpp"
-#include "HttpParser.hpp"
-#include "HttpRequest.hpp"
-#include "HttpResponse.hpp"
-#include "HttpRouter.hpp"
-#include <fstream>
-#include <sstream>
-#include <sys/stat.h>
 
 EpollServer::EpollServer() : _epollFd(-1)
 {
@@ -16,8 +9,11 @@ EpollServer::EpollServer() : _epollFd(-1)
 
 EpollServer::~EpollServer()
 {
-    for (std::map<int, ClientData>::iterator it = _clients.begin(); it != _clients.end(); ++it)
+    for (std::map<int, EpollClient *>::iterator it = _clients.begin(); it != _clients.end(); ++it)
+    {
         close(it->first);
+        delete it->second;
+    }
     for (std::set<int>::iterator it = _listenFds.begin(); it != _listenFds.end(); ++it)
         close(*it);
     if (_epollFd != -1)
@@ -26,22 +22,50 @@ EpollServer::~EpollServer()
 
 void EpollServer::_setNonBlocking(int fd)
 {
-    int flags = fcntl(fd, F_GETFL, 0); // get the binary flag for fd
+    int flags = fcntl(fd, F_GETFL, 0);
     if (flags == -1)
         throw std::runtime_error("fcntl getfl failed");
-
-    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) // set the flag to nonblocking
+    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1)
         throw std::runtime_error("fcntl setfl failed");
 }
 
 void EpollServer::_registerToEpoll(int fd, uint32_t events)
 {
-    struct epoll_event epoll_ev;
-    epoll_ev.events = events;
-    epoll_ev.data.fd = fd;
+    struct epoll_event ev;
+    ev.events = events;
+    ev.data.fd = fd;
+    if (epoll_ctl(_epollFd, EPOLL_CTL_ADD, fd, &ev) == -1)
+        throw std::runtime_error("epoll_ctl ADD failed");
+}
 
-    if (epoll_ctl(_epollFd, EPOLL_CTL_ADD, fd, &epoll_ev) == -1) // add the new fd to the list
-        throw std::runtime_error("epoll ctl failed");
+void EpollServer::_verifyGetAddr(int ret, int fd)
+{
+    if (ret != 0)
+    {
+        close(fd);
+        throw std::runtime_error(std::string("getaddrinfo failed "));
+    }
+}
+
+void EpollServer::_verifyBind(int fd, struct addrinfo *res, std::ostringstream *oss, const std::string &host)
+{
+    if (bind(fd, res->ai_addr, res->ai_addrlen) == -1)
+    {
+        freeaddrinfo(res);
+        close(fd);
+        if (errno == EADDRINUSE)
+            throw std::runtime_error("bind failed: EADDRINUSE on " + host + ":" + oss->str());
+        throw std::runtime_error("bind failed");
+    }
+}
+
+void EpollServer::_verifyListen(int fd)
+{
+    if (listen(fd, SOMAXCONN) == -1)
+    {
+        close(fd);
+        throw std::runtime_error("listen failed");
+    }
 }
 
 int EpollServer::_createAndBindSocket(const std::string &host, int port)
@@ -70,248 +94,75 @@ int EpollServer::_createAndBindSocket(const std::string &host, int port)
     const char *node = host.empty() ? NULL : host.c_str();
 
     int ret = getaddrinfo(node, oss.str().c_str(), &hints, &res);
-    if (ret != 0)
-    {
-        close(fd);
-        throw std::runtime_error(std::string("getaddrinfo failed: ") + gai_strerror(ret));
-    }
-
-    if (bind(fd, res->ai_addr, res->ai_addrlen) == -1)
-    {
-        freeaddrinfo(res);
-        close(fd);
-        if (errno == EADDRINUSE)
-            throw std::runtime_error("bind failed: EADDRINUSE on " + host + ":" + oss.str());
-        throw std::runtime_error("bind failed");
-    }
-
+    _verifyGetAddr(ret, fd);
+    _verifyBind(fd, res, &oss, host);
     freeaddrinfo(res);
-
-    if (listen(fd, SOMAXCONN) == -1)
-    {
-        close(fd);
-        throw std::runtime_error("listen failed");
-    }
+    _verifyListen(fd);
     return fd;
 }
 
-void EpollServer::addServer(ServerConfig &config, int port)
+// ─── Public API ──────────────────────────────────────────────────────────────
+
+void EpollServer::addServer(ServerConfig *config, int port)
 {
-    int fd = _createAndBindSocket(config.getListenDirectives()[0].host, port);
+    int fd = _createAndBindSocket(config->getListenDirectives()[0].host, port);
     _setNonBlocking(fd);
     _registerToEpoll(fd, EPOLLIN);
     _listenFds.insert(fd);
-    _fdToConfig[fd] = &config;
+    _fdToConfig[fd] = config;
 
     std::ostringstream oss;
     oss << port;
-    utils::log_info("Listening on " + config.getListenDirectives()[0].host + ":" + oss.str());
+    utils::log_info("Listening on http://" + config->getListenDirectives()[0].host + ":" + oss.str());
 }
 
 void EpollServer::_acceptNewClient(int listenFd)
 {
     while (true)
     {
-        struct sockaddr_in client_addr;
-        socklen_t client_len = sizeof(client_addr);
-        int client_fd = accept(listenFd, (struct sockaddr *)&client_addr, &client_len);
-        if (client_fd == -1)
+        struct sockaddr_in clientAddr;
+        socklen_t clientLen = sizeof(clientAddr);
+        int clientFd = accept(listenFd, (struct sockaddr *)&clientAddr, &clientLen);
+
+        if (clientFd == -1)
         {
             if (errno == EAGAIN || errno == EWOULDBLOCK)
                 break;
             utils::log_error("accept() failed");
             break;
         }
-        _setNonBlocking(client_fd);
-        _registerToEpoll(client_fd, EPOLLIN | EPOLLERR | EPOLLHUP);
-        ClientData data;
-        data.last_activity = time(NULL);
-        data.server_fd = listenFd;
-        data.server_config = _fdToConfig[listenFd];
-        data.continue_sent = false;
-        _clients[client_fd] = data;
-        std::cout << "New Client fd = " << client_fd << std::endl;
+        _setNonBlocking(clientFd);
+        _registerToEpoll(clientFd, EPOLLIN | EPOLLERR | EPOLLHUP);
+        _clients[clientFd] = new EpollClient(clientFd, _epollFd, _fdToConfig[listenFd]);
+        std::cout << "New Client fd=" << clientFd << std::endl;
     }
+}
+
+void EpollServer::_closeClient(int fd)
+{
+    if (_clients.count(fd) == 0)
+        return;
+    epoll_ctl(_epollFd, EPOLL_CTL_DEL, fd, NULL);
+    close(fd);
+    delete _clients[fd];
+    _clients.erase(fd);
+    std::cout << "Connection closed on fd " << fd << std::endl;
 }
 
 void EpollServer::_checkTimeout()
 {
     time_t now = time(NULL);
-    std::vector<int> fdTimeout;
+    std::vector<int> timedOut;
 
-    for (std::map<int, ClientData>::iterator it = _clients.begin(); it != _clients.end(); ++it)
-    {
-        if (now - it->second.last_activity > MAX_TIMEOUT)
-            fdTimeout.push_back(it->first);
-    }
+    for (std::map<int, EpollClient *>::iterator it = _clients.begin(); it != _clients.end(); ++it)
+        if (it->second->isTimedOut(now))
+            timedOut.push_back(it->first);
 
-    for (size_t i = 0; i < fdTimeout.size(); ++i)
+    for (std::vector<int>::iterator it = timedOut.begin(); it != timedOut.end(); ++it)
     {
         utils::log_info("Client timed out, closing fd");
-        _closeClient(fdTimeout[i]);
+        _closeClient(*it);
     }
-}
-
-void EpollServer::_handleClientData(int fd)
-{
-    char buffer[4096];
-    ClientData &data = _clients[fd];
-
-    ssize_t bytesRead = recv(fd, buffer, sizeof(buffer), 0);
-    if (bytesRead <= 0)
-    {
-        if (!data.send_buf.empty())
-        {
-            struct epoll_event ev;
-            ev.events = EPOLLOUT | EPOLLERR | EPOLLHUP;
-            ev.data.fd = fd;
-            epoll_ctl(_epollFd, EPOLL_CTL_MOD, fd, &ev);
-            return;
-        }
-        _closeClient(fd);
-        return;
-    }
-
-    data.last_activity = time(NULL);
-
-    std::string newData(buffer, bytesRead);
-    bool complete = data.parser.feed(newData, *data.server_config);
-    HttpRequest &request = data.parser.getRequest();
-
-    // Handle Expect: 100-continue
-    if (data.parser.getState() == PARSE_ERROR)
-    {
-        // Error detected (including 413 Payload Too Large) - respond immediately
-        _createResponse(fd, complete, data);
-    }
-    else if (!data.continue_sent && request.hasHeader("expect"))
-    {
-        std::string expect = request.getHeader("expect");
-        if (expect.find("100-continue") != std::string::npos)
-        {
-            // Send 100 Continue to allow client to send body
-            std::string continueResponse = request.getVersion() + " 100 Continue\r\n\r\n";
-            send(fd, continueResponse.c_str(), continueResponse.size(), 0);
-            data.continue_sent = true;
-            return; // Wait for body data
-        }
-    }
-    else if (complete)
-    {
-        _createResponse(fd, complete, data);
-    }
-    // Otherwise, wait for more data
-}
-
-void EpollServer::_createResponse(int fd, bool complete, ClientData &data)
-{
-    HttpResponse response;
-    HttpRequest request = data.parser.getRequest();
-    std::string responseStr;
-    int statusCode = static_cast<int>(request.getErrorCode());
-
-    if (data.parser.getState() == PARSE_ERROR)
-        responseStr = response.buildError(statusCode, request);
-    else if (complete)
-    {
-        if (statusCode >= 400)
-            responseStr = response.buildError(statusCode, request);
-        else
-        {
-            // Get the root directory from config
-            ServerConfig* config = _fdToConfig[data.server_fd];
-            
-            //ROUTER PARSER
-            HttpRouter router;
-            HttpRouteMatch match = router.route(request, *config);
-            if (match.errorCode == 301 || match.errorCode == 302) {
-                response.build(match.errorCode, "", "", request.getVersion());
-                response.setLocation(match.redirectTarget);
-                responseStr = response.serialize(request.getMethod());
-            }
-            else if (match.errorCode == 405) {
-                response.build(405, "", "", request.getVersion());
-                response.setAllow(match.location->methods); // allowed methods
-                responseStr = response.serialize(request.getMethod());
-            }
-            else if (match.errorCode != 0)
-                responseStr = response.buildError(match.errorCode, request);
-            else if (match.executeCGI) {
-                // later Dev B will implement CGI handler
-                responseStr = response.buildError(501, request);
-            }
-            else
-            {
-                struct stat st;
-                int result;
-                if (stat(match.path.c_str(), &st) != 0)
-                    responseStr = response.buildError(404, request);
-                else {
-                    result = response.checkFile(match.path, st);
-
-                    if (request.getMethod() == METHOD_DELETE)
-                        responseStr = response.handleDelete(request, match.path, result);
-                    else if (result == 300)
-                        responseStr = response.buildFromDirectory(request, match.path, match.autoindex, result);
-                    else
-                        responseStr = response.buildFromFile(request, match.path, result);
-                }
-            }
-        }
-    }
-    else
-        responseStr = response.buildError(400, request); // Incomplete request, treat as bad request
-
-    if (responseStr.empty())
-        responseStr = response.serialize(request.getMethod());
-    data.send_buf = responseStr;
-
-    struct epoll_event ev;
-    ev.events = EPOLLOUT | EPOLLERR | EPOLLHUP;
-    ev.data.fd = fd;
-    epoll_ctl(_epollFd, EPOLL_CTL_MOD, fd, &ev);
-}
-
-void EpollServer::_closeClient(int fd)
-{
-    // Guard against double-close
-    if (_clients.count(fd) == 0)
-        return;
-    epoll_ctl(_epollFd, EPOLL_CTL_DEL, fd, NULL);
-    close(fd);
-    _clients.erase(fd);
-    std::cout << "Connection closed on fd " << fd << std::endl;
-}
-
-void EpollServer::_handleClientResponse(int fd)
-{
-    ClientData &data = _clients[fd];
-
-    if (data.send_buf.empty())
-    {
-        _closeClient(fd);
-        return;
-    }
-
-    ssize_t sent = send(fd, data.send_buf.data(), data.send_buf.size(), 0);
-    if (sent < 0)
-    {
-        if (errno == EAGAIN || errno == EWOULDBLOCK)
-            return; // send buffer full, wait for next EPOLLOUT
-        _closeClient(fd);
-        return;
-    }
-    if (sent == 0)
-    {
-        _closeClient(fd);
-        return;
-    }
-
-    data.send_buf.erase(0, sent);
-    data.last_activity = time(NULL);
-
-    if (data.send_buf.empty())
-        _closeClient(fd);
 }
 
 void EpollServer::run()
@@ -320,7 +171,6 @@ void EpollServer::run()
     while (true)
     {
         int n = epoll_wait(_epollFd, _events, MAX_EVENTS, 1000);
-
         if (n == -1)
         {
             if (errno == EINTR)
@@ -334,22 +184,23 @@ void EpollServer::run()
             int fd = _events[i].data.fd;
             uint32_t ev = _events[i].events;
 
-            if (_listenFds.count(fd)) // it's a listen socket → accept
+            if (_listenFds.count(fd))
             {
-                std::cout << _listenFds.size() << " listen sockets, accepting on fd " << fd << std::endl;
                 _acceptNewClient(fd);
             }
-            else if (_clients.count(fd)) // it's a client socket → handle
+            else if (_clients.count(fd))
             {
                 if (ev & (EPOLLERR | EPOLLHUP))
                     _closeClient(fd);
                 else
                 {
+                    bool shouldClose = false;
                     if (ev & EPOLLIN)
-                        _handleClientData(fd);
-                    if (_clients.count(fd) && (ev & EPOLLOUT))
-
-                        _handleClientResponse(fd);
+                        shouldClose = _clients[fd]->handleRead();
+                    if (!shouldClose && _clients.count(fd) && (ev & EPOLLOUT))
+                        shouldClose = _clients[fd]->handleWrite();
+                    if (shouldClose)
+                        _closeClient(fd);
                 }
             }
         }

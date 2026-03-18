@@ -19,6 +19,7 @@ class HttpResponse {
 
         std::string                         _location;  //TESTE
         std::string                         _allow;     //TESTE
+        std::string                         _connection; // Connection header value (keep-alive/close)
 
         static void initCodeMsg();
         bool _readFile(const std::string& path, std::string& out) const;
@@ -46,9 +47,11 @@ class HttpResponse {
 
         const std::string& getStatusMessage(int code) const;
         std::string getVersion() const;
+        int getStatusCode() const;
         
         void setLocation(const std::string& url);
         void setAllow(const std::vector<std::string>& methods);
+        void setConnection(const std::string& conn);
 
         bool hasBody() const;
 };
