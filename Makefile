@@ -31,7 +31,7 @@ GENERAL	=	main.cpp
 GENERAL	+=	utils.cpp
 
 EPOLL = EpollServer.cpp
-#EPOLL += EpollClient.cpp
+EPOLL += EpollClient.cpp
 
 HTTP =	HttpRequest.cpp
 HTTP +=	HttpParser.cpp
