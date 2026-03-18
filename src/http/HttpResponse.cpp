@@ -42,7 +42,8 @@ HttpResponse::HttpResponse()
     :   _statusCode(200),
         _body(""),
         _contentType(""),
-        _version("") {
+           _version(""),
+           _connection("keep-alive") {
     initCodeMsg();
 }
 
@@ -303,8 +304,11 @@ std::string HttpResponse::serialize(HttpMethod method) const {
         oss << "Allow: " << _allow << "\r\n";
 
     if (hasBody()) // No Content should not have a body
+    {
         oss << "Content-Length: " << _body.size() << "\r\n";
-    oss << "Connection: keep-alive\r\n"; //TODO on sprint 4
+        if (!_connection.empty())
+            oss << "Connection: " << _connection << "\r\n";
+    }
     oss << "\r\n";
 
     if (hasBody() && method != METHOD_HEAD)
@@ -358,5 +362,13 @@ void HttpResponse::setAllow(const std::vector<std::string>& methods) {
         if (i > 0)
             _allow += ", ";
         _allow += methods[i];
-    }
+    } //TODO: isto é para o teste 3 da task 2.3. Precisa de ser revisto
+}
+
+int HttpResponse::getStatusCode() const {
+    return _statusCode;
+}
+
+void HttpResponse::setConnection(const std::string& conn) {
+    _connection = conn;
 }

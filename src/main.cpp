@@ -59,7 +59,7 @@ int main(int argc, char **argv)
             int port = it->first;
             std::vector<ServerConfig>& serverList = it->second;
             for (std::vector<ServerConfig>::iterator serverIt = serverList.begin(); serverIt != serverList.end(); ++serverIt) {
-                server.addServer(*serverIt, port);
+                server.addServer(&(*serverIt), port);
             }
         }
         server.run();

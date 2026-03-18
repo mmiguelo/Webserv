@@ -1,59 +1,40 @@
 #pragma once
 
-#include <iostream>
-#include <string>
-#include <sys/epoll.h>
-#include <sys/socket.h>
-#include <fcntl.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <fstream>
-#include <cstring>
-#include <cerrno>
-#include <unistd.h>
-#include <set>
-#include <map>
+#include "EpollClient.hpp"
 #include "ServerConfig.hpp"
-#include "HttpParser.hpp"
+#include <map>
+#include <set>
+#include <netinet/in.h>
+#include <fcntl.h>
+#include <netdb.h>
+#include <cstring>
 
 #define MAX_EVENTS 64
-#define MAX_TIMEOUT 10
-
-struct ClientData
-{
-    std::string recv_buf;
-    std::string send_buf;
-    int server_fd;
-    ServerConfig *server_config;
-    time_t last_activity;
-    HttpParser parser;
-    bool continue_sent;
-};
 
 class EpollServer
 {
 private:
     int _epollFd;
     std::set<int> _listenFds;
+    std::map<int, EpollClient *> _clients;
     std::map<int, ServerConfig *> _fdToConfig;
-    std::map<int, ClientData> _clients;
-
     struct epoll_event _events[MAX_EVENTS];
 
-    int _createAndBindSocket(const std::string &host, int port);
     void _setNonBlocking(int fd);
     void _registerToEpoll(int fd, uint32_t events);
+    int _createAndBindSocket(const std::string &host, int port);
     void _acceptNewClient(int listenFd);
-    void _handleClientData(int fd);
     void _closeClient(int fd);
-    void _handleClientResponse(int fd);
     void _checkTimeout();
-    void _createResponse(int fd, bool complete, ClientData &data);
+
+    void _verifyGetAddr(int ret, int fd);
+    void _verifyBind(int fd, struct addrinfo *res, std::ostringstream *oss, const std::string &host);
+    void _verifyListen(int fd);
 
 public:
     EpollServer();
     ~EpollServer();
 
-    void addServer(ServerConfig &config, int port);
+    void addServer(ServerConfig *config, int port);
     void run();
 };
