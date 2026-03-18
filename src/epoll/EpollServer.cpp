@@ -243,10 +243,10 @@ bool EpollServer::_keepAlive(const HttpRequest &request)
     if (request.hasHeader("connection"))
         connHeader = toLowerStr(request.getHeader("connection"));
     
-        std::string version = request.getVersion().empty() ? "HTTP/1.1" : request.getVersion();
+    std::string version = request.getVersion().empty() ? "HTTP/1.1" : request.getVersion();
 
-        if (version == "HTTP/1.1") return connHeader != "close";
-        if (version == "HTTP/1.0") return connHeader == "keep-alive";
+    if (version == "HTTP/1.1") return connHeader != "close";
+    if (version == "HTTP/1.0") return connHeader == "keep-alive";
     return false;
 }
 

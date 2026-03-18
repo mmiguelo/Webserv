@@ -15,6 +15,7 @@
 #include <map>
 #include "ServerConfig.hpp"
 #include "HttpParser.hpp"
+#include "HttpResponse.hpp"
 
 #define MAX_EVENTS 64
 #define MAX_TIMEOUT 30
@@ -57,8 +58,8 @@ private:
     void _verifyListen(int fd);
     bool _keepAlive(const HttpRequest &request);
     bool _buildResponseError(ClientData* data, const HttpRequest& request, HttpResponse& response, std::string& responseStr);
-    void EpollServer::_buildRoutedResponse(ClientData* data, const HttpRequest& request, HttpResponse& response, std::string& responseStr);
-    void EpollServer::_finalizeResponse(int fd, ClientData* data, const HttpRequest& request, HttpResponse& response, std::string& responseStr, bool keepAlive);
+    void _buildRoutedResponse(ClientData* data, const HttpRequest& request, HttpResponse& response, std::string& responseStr);
+    void _finalizeResponse(int fd, ClientData* data, const HttpRequest& request, HttpResponse& response, std::string& responseStr, bool keepAlive);
 
 public:
     EpollServer();
