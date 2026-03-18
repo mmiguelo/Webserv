@@ -299,9 +299,16 @@ void EpollServer::_buildRoutedResponse(ClientData *data, const HttpRequest &requ
     }
     else
     {
-        responseStr = response.buildFromFile(request, match.path);
-        if (response.getStatusCode() >= 400)
-            data->should_close_after_send = true;
+        struct stat st;
+        if (stat(match.path.c_str(), &st) == 0 && S_ISDIR(st.st_mode))
+            responseStr = response.buildFromDirectory(request, match.path, match.autoindex);
+        else
+        {
+            responseStr = response.buildFromFile(request, match.path);
+            if (response.getStatusCode() >= 400)
+                data->should_close_after_send = true;
+        }
+
     }
 }
 
