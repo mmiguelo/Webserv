@@ -250,66 +250,63 @@ bool EpollServer::_keepAlive(const HttpRequest &request)
     return false;
 }
 
-std::string EpollServer::_buildResponse(ClientData *data, const HttpRequest &request, int statusCode)
+bool EpollServer::_buildResponseError(ClientData *data, const HttpRequest &request, HttpResponse &response, std::string &responseStr)
 {
-    HttpResponse response;
-    ServerConfig* config = _fdToConfig[data->server_fd];
-    HttpRouter router;
-    HttpRouteMatch match = router.route(request, *config);
-
-    if (match.errorCode == 301 || match.errorCode == 302) {
-        response.build(match.errorCode, "", "", request.getVersion());
-        response.setLocation(match.redirectTarget);
-        return response.serialize(request.getMethod());
-    }
-    if (match.errorCode == 405) {
-        data->should_close_after_send = true;
-        response.build(405, "", "", request.getVersion());
-        response.setAllow(match.location->methods);
-        return response.serialize(request.getMethod());
-    }
-    if (match.errorCode != 0)
-        return response.buildError(statusCode, request);
-    if (match.executeCGI)
-        return response.buildError(501, request); // TODO: CGI handler
-
-    std::string result = response.buildFromFile(request, match.path);
-    if (response.getStatusCode() >= 400)
-        data->should_close_after_send = true;
-    return result;
-}
-
-void EpollServer::_createResponse(int fd, bool complete, ClientData *data)
-{
-    HttpResponse response;
-    HttpRequest request = data->parser.getRequest();
-    std::string responseStr;
     int statusCode = static_cast<int>(request.getErrorCode());
-    // Decide keep-alive based on request version and Connection header
-    bool keepAlive = _keepAlive(request);
 
-    // default: if parser error or incomplete, we still want to send error and close
     if (data->parser.getState() == PARSE_ERROR)
     {
         responseStr = response.buildError(statusCode, request);
         data->should_close_after_send = true;
+        return true;
     }
-    else if (!complete)
-    {
-        responseStr = response.buildError(400, request); // Incomplete request, treat as bad request
-        data->should_close_after_send = true;
-    }
-    else if (statusCode >= 400)
+    if (statusCode >= 400)
     {
         responseStr = response.buildError(statusCode, request);
         data->should_close_after_send = true;
+        return true;
+    }
+    return false;
+}
+
+void EpollServer::_buildRoutedResponse(ClientData *data, const HttpRequest &request, HttpResponse &response, std::string &responseStr)
+{
+    ServerConfig* config = _fdToConfig[data->server_fd];
+    HttpRouter router;
+    HttpRouteMatch match = router.route(request, *config);
+
+    if (match.errorCode == 301 || match.errorCode == 302)
+    {
+        response.build(match.errorCode, "", "", request.getVersion());
+        response.setLocation(match.redirectTarget);
+        responseStr = response.serialize(request.getMethod());
+    }
+    else if (match.errorCode == 405)
+    {
+        response.build(405, "", "", request.getVersion());
+        response.setAllow(match.location->methods);
+        responseStr = response.serialize(request.getMethod());
+        data->should_close_after_send = true;
+    }
+    else if (match.errorCode != 0)
+    {
+        responseStr = response.buildError(match.errorCode, request);
+        data->should_close_after_send = true;
+    }
+    else if (match.executeCGI)
+    {
+        responseStr = response.buildError(501, request);
     }
     else
     {
-        
+        responseStr = response.buildFromFile(request, match.path);
+        if (response.getStatusCode() >= 400)
+            data->should_close_after_send = true;
     }
+}
 
-    // Set Connection header on response according to keepAlive decision and server desire to close
+void EpollServer::_finalizeResponse(int fd, ClientData* data, const HttpRequest& request, HttpResponse& response, std::string& responseStr, bool keepAlive)
+{
     if (data->should_close_after_send)
         response.setConnection("close");
     else
@@ -317,13 +314,36 @@ void EpollServer::_createResponse(int fd, bool complete, ClientData *data)
 
     if (responseStr.empty())
         responseStr = response.serialize(request.getMethod());
-    // Append response so multiple pipelined responses are sent in order
+
     data->send_buf += responseStr;
 
     struct epoll_event ev;
     ev.events = EPOLLOUT | EPOLLERR | EPOLLHUP;
     ev.data.fd = fd;
     epoll_ctl(_epollFd, EPOLL_CTL_MOD, fd, &ev);
+}
+
+
+
+void EpollServer::_createResponse(int fd, bool complete, ClientData* data)
+{
+    HttpResponse response;
+    HttpRequest request = data->parser.getRequest();
+    std::string responseStr;
+
+    bool keepAlive = _keepAlive(request);
+
+    if (!complete)
+    {
+        responseStr = response.buildError(400, request);
+        data->should_close_after_send = true;
+    }
+    else if (!_buildResponseError(data, request, response, responseStr))
+    {
+        _buildRoutedResponse(data, request, response, responseStr);
+    }
+
+    _finalizeResponse(fd, data, request, response, responseStr, keepAlive);
 }
 
 void EpollServer::_closeClient(int fd)

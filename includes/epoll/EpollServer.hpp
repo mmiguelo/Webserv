@@ -56,9 +56,9 @@ private:
     void _verifyBind(int fd, struct addrinfo *res, std::ostringstream *oss, const std::string &host);
     void _verifyListen(int fd);
     bool _keepAlive(const HttpRequest &request);
-    std::string EpollServer::_buildResponse(ClientData *data, const HttpRequest &request, int statusCode);
-    std::string _selectResponse(int, bool, ClientData*, const HttpRequest&);
-    void _queueResponse(int, ClientData*, const std::string&);
+    bool _buildResponseError(ClientData* data, const HttpRequest& request, HttpResponse& response, std::string& responseStr);
+    void EpollServer::_buildRoutedResponse(ClientData* data, const HttpRequest& request, HttpResponse& response, std::string& responseStr);
+    void EpollServer::_finalizeResponse(int fd, ClientData* data, const HttpRequest& request, HttpResponse& response, std::string& responseStr, bool keepAlive);
 
 public:
     EpollServer();
