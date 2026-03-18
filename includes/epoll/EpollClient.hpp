@@ -8,6 +8,7 @@
 #include <string>
 #include <ctime>
 #include <sys/epoll.h>
+#include <sys/stat.h>
 
 #define MAX_TIMEOUT 30
 
