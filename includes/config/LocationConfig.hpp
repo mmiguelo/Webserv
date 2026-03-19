@@ -10,6 +10,8 @@ struct LocationConfig {
 	std::string root;									//opcional
 	std::vector<std::string> index; 					//opcional
 	std::string upload_dir;								//opcional
+	size_t client_max_body_size;
+	bool has_client_max_body_size;
 
 	bool autoindex;										//opcional
 	std::vector<std::string> methods;					//opcional
@@ -20,7 +22,7 @@ struct LocationConfig {
 	int redirect_code;									//default 0
 	bool has_redirect;
 
-	LocationConfig() : autoindex(false), redirect_code(0), has_redirect(false) {} //os outros campos iniciam-se vazios por defualt
+	LocationConfig() : client_max_body_size(0), has_client_max_body_size(false), autoindex(false), redirect_code(0), has_redirect(false) {} //os outros campos iniciam-se vazios por defualt
 };
 
 #endif

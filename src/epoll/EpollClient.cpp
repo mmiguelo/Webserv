@@ -209,6 +209,15 @@ void EpollClient::_buildRoutedResponse(const HttpRequest &request, HttpResponse 
     }
     else
     {
+        if (request.getMethod() == METHOD_POST && match.location != NULL &&
+            match.location->has_client_max_body_size &&
+            request.getBody().size() > match.location->client_max_body_size)
+        {
+            responseStr = response.buildError(413, request);
+            _closeAfterSend = true;
+            return;
+        }
+
         if (request.getMethod() == METHOD_POST && !match.upload_dir.empty())
         {
             responseStr = response.handleUpload(request, match.upload_dir);

@@ -23,6 +23,8 @@ void ConfigParser::parseLocation(ServerConfig &serverBlock)
 			parseAutoindex(location);
 		else if (matchWord("methods"))
 			parseLocationMethods(location);
+		else if (matchWord("client_max_body_size"))
+			parseLocationClientMaxBodySize(location);
 		else if (matchWord("cgi_ext"))
 			parseCgiExt(location);
 		else if (matchWord("index"))

@@ -28,6 +28,7 @@ class ConfigParser {
 		void parseUploadDir(LocationConfig &location);
 		void parseAutoindex(LocationConfig &location);
 		void parseLocationMethods(LocationConfig &location);
+		void parseLocationClientMaxBodySize(LocationConfig &location);
 		void parseCgiExt(LocationConfig &location);
 		void parseReturn(LocationConfig &location);
 		void parseLocationIndex(LocationConfig &location);
