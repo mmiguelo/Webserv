@@ -113,34 +113,3 @@ void HttpRequest::setErrorCode(HttpStatusCode code) {
 void HttpRequest::setHeader(const std::string& key, const std::string& value) {
     _headers[toLowerStr(key)] = trimWhitespace(value);
 }
-
-void HttpRequest::print(std::ostream& os) const
-{
-    os << "===== HttpRequest =====" << std::endl;
-
-    os << "Method: " << _method << std::endl;
-    os << "Path: " << _path << std::endl;
-    os << "Query: " << _query << std::endl;
-    os << "Version: " << _version << std::endl;
-    os << "Status Code: " << _statusCode << std::endl;
-
-    os << "\nHeaders:" << std::endl;
-    if (_headers.empty())
-        os << "  (none)" << std::endl;
-    else
-    {
-        for (std::map<std::string, std::string>::const_iterator it = _headers.begin();
-             it != _headers.end(); ++it)
-        {
-            os << "  " << it->first << ": " << it->second << std::endl;
-        }
-    }
-
-    os << "\nBody:" << std::endl;
-    if (_body.empty())
-        os << "  (empty)" << std::endl;
-    else
-        os << _body << std::endl;
-
-    os << "=======================" << std::endl;
-}

@@ -27,7 +27,6 @@ class HttpResponse {
         std::string httpDate() const;
         static std::string _getMimeType(const std::string& path);
         static bool _fileExists(const std::string& path);
-        std::string _getErrorPage(int code, const ServerConfig* config);
         static std::string _sanitizeFilename(const std::string& filename);
         static bool _writeBinaryFile(const std::string& path, const std::string& data);
 
