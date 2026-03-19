@@ -152,7 +152,6 @@ int HttpResponse::checkFile(const struct stat& st) const
 std::string HttpResponse::buildAutoIndex(const HttpRequest& request, const std::string& dirPath) {
 
     DIR* dir = opendir(dirPath.c_str());
-    std::cout << "Building autoindex for directory: " << dirPath << std::endl;
     if (!dir)
         return buildError(403, request);
     
@@ -197,7 +196,7 @@ std::string HttpResponse::buildAutoIndex(const HttpRequest& request, const std::
         std::cout << entries[i] << std::endl;
 
     std::string templateHtml;
-    if (!_readFile("www/html/autoindex.html", templateHtml)) {
+    if (!_readFile("www/html/autoindex.html", templateHtml) || templateHtml.empty()) {
         templateHtml = "<!DOCTYPE html><html><body>"
                        "<h1>Index of {{URI_PATH}}</h1><hr><pre>"
                        "{{FILE_LIST}}"
@@ -318,7 +317,8 @@ std::string HttpResponse::handleUpload(const HttpRequest& request, const std::st
     if (_version.empty())
         _version = "HTTP/1.1";
 
-    std::string contentType = toLowerStr(request.getHeader("content-type"));
+    std::string rawContentType = request.getHeader("content-type");
+    std::string contentType = toLowerStr(rawContentType);
     std::string uploadBase = uploadDir;
     if (!uploadBase.empty() && uploadBase[uploadBase.size() - 1] != '/')
         uploadBase += '/';
@@ -331,7 +331,7 @@ std::string HttpResponse::handleUpload(const HttpRequest& request, const std::st
         if (boundaryPos == std::string::npos)
             return buildError(400, request);
 
-        std::string boundary = contentType.substr(boundaryPos + 9);
+        std::string boundary = rawContentType.substr(boundaryPos + 9);
         size_t semicolon = boundary.find(';');
         if (semicolon != std::string::npos)
             boundary = boundary.substr(0, semicolon);
