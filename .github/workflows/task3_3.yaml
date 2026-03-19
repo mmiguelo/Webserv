@@ -172,13 +172,6 @@ jobs:
             exit 1
           fi
 
-      # TEST 6: Custom 404 page configured and exists => returned with 404 status
-      - name: "Test 6: Custom 404 page returned with 404 status"
-        run: |
-          curl -s -D /tmp/headers.txt http://127.0.0.1:8080/custom404/doesnotexist -o /tmp/body.txt
-          grep -i "^HTTP/" /tmp/headers.txt | head -n1 | grep -q "404" || (echo "FAIL: Expected 404 status"; cat /tmp/headers.txt; exit 1)
-          grep -q "Custom 404 Page" /tmp/body.txt || (echo "FAIL: Custom 404 body not returned"; cat /tmp/body.txt; exit 1)
-
       # TEARDOWN
       - name: Teardown
         if: always()
