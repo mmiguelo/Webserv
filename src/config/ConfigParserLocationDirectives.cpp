@@ -15,7 +15,8 @@ void ConfigParser::parseLocationRoot(LocationConfig &location)
 
 void ConfigParser::parseUploadDir(LocationConfig &location)
 {
-	location.upload_dir = expectWord();
+	//TODO: dont know if we should add toAbsolutePath here
+	location.upload_dir = toAbsolutePath(expectWord());
 	expect(SEMICOLON);
 }
 
