@@ -10,7 +10,7 @@
 #include <sys/epoll.h>
 #include <sys/stat.h>
 
-#define MAX_TIMEOUT 30
+#define MAX_TIMEOUT 15
 
 class EpollClient
 {

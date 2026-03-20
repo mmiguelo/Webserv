@@ -39,12 +39,12 @@ class HttpResponse {
         int checkFile(const struct stat& st) const;
 
         void build(int statusCode, const std::string& body, const std::string& contentType, const std::string& version);
-        std::string buildError(int statusCode, const HttpRequest& request);
-        std::string buildFromFile(const HttpRequest& request, const std::string& filePath, int checkResult);
-        std::string buildFromDirectory(const HttpRequest& request, const std::string& dirPath, bool autoindex);
-        std::string handleDelete(const HttpRequest& request, const std::string& path, int checkResult);
-        std::string handleUpload(const HttpRequest& request, const std::string& uploadDir);
-        std::string buildAutoIndex(const HttpRequest& request, const std::string& dirPath);
+        std::string buildError(int statusCode, const HttpRequest& request, ServerConfig &config);
+        std::string buildFromFile(const HttpRequest& request, const std::string& filePath, int checkResult, ServerConfig &config);
+        std::string buildFromDirectory(const HttpRequest& request, const std::string& dirPath, bool autoindex, ServerConfig &config);
+        std::string handleDelete(const HttpRequest& request, const std::string& path, int checkResult, ServerConfig &config);
+        std::string handleUpload(const HttpRequest& request, const std::string& uploadDir, ServerConfig &server);
+        std::string buildAutoIndex(const HttpRequest& request, const std::string& dirPath, ServerConfig &config);
         std::string serialize(HttpMethod method) const;
 
         const std::string& getStatusMessage(int code) const;

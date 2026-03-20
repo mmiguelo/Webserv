@@ -30,7 +30,7 @@ const std::vector<std::string>& ServerConfig::getServerName() const {
 const std::vector<std::string>& ServerConfig::getMethods() const {
 	return _methods;
 }
-const std::map<int, std::string>& ServerConfig::getErrorPage() const {
+const std::map<int, std::string>& ServerConfig::getAllErrorPages() const {
 	return _error_page;
 }
 const std::vector<LocationConfig>& ServerConfig::getLocations() const {
@@ -58,4 +58,8 @@ void ServerConfig::addErrorPage(int code, const std::string& path) {
 }
 void ServerConfig::addLocation(const LocationConfig& location) {
 	_locations.push_back(location);
+}
+
+std::string ServerConfig::getErrorPage(const int key) {
+	return _error_page[key];
 }

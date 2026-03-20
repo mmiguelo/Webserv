@@ -103,7 +103,7 @@ void Validator::validateRoot(const ServerConfig &server)
 
 void Validator::validateErrorPages(const ServerConfig &server)
 {
-	const std::map<int, std::string> &errorPages = server.getErrorPage();
+	const std::map<int, std::string> &errorPages = server.getAllErrorPages();
 	for (std::map<int, std::string>::const_iterator it = errorPages.begin();
 		 it != errorPages.end(); ++it)
 	{

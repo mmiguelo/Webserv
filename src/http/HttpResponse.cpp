@@ -149,11 +149,11 @@ int HttpResponse::checkFile(const struct stat& st) const
     return 200; // OK
 }
 
-std::string HttpResponse::buildAutoIndex(const HttpRequest& request, const std::string& dirPath) {
+std::string HttpResponse::buildAutoIndex(const HttpRequest& request, const std::string& dirPath, ServerConfig &config) {
 
     DIR* dir = opendir(dirPath.c_str());
     if (!dir)
-        return buildError(403, request);
+        return buildError(403, request, config);
     
     std::vector<std::string> entries;
     struct dirent* entry; //this struct holds info about one directory entry. for example d_name (the filename)
@@ -216,7 +216,7 @@ std::string HttpResponse::buildAutoIndex(const HttpRequest& request, const std::
     return serialize(request.getMethod());
 }
 
-std::string HttpResponse::buildFromDirectory(const HttpRequest& request, const std::string& dirPath, bool autoindex)
+std::string HttpResponse::buildFromDirectory(const HttpRequest& request, const std::string& dirPath, bool autoindex, ServerConfig &config)
 {
     _version = request.getVersion();
     if (_version.empty())
@@ -246,17 +246,17 @@ std::string HttpResponse::buildFromDirectory(const HttpRequest& request, const s
     {
         int indexResult = checkFile(indexSt);
         if (indexResult == 200)
-            return buildFromFile(request, indexPath, indexResult);
+            return buildFromFile(request, indexPath, indexResult, config);
     }
     
     if (autoindex)
-        return buildAutoIndex(request, dirPath);
+        return buildAutoIndex(request, dirPath, config);
 
     // No index.html and no autoindex support here yet
-    return buildError(403, request);
+    return buildError(403, request, config);
 }
 
-std::string HttpResponse::buildFromFile(const HttpRequest& request, const std::string& filePath, int checkResult) {
+std::string HttpResponse::buildFromFile(const HttpRequest& request, const std::string& filePath, int checkResult, ServerConfig &config) {
 
     _version = request.getVersion();
     if (_version.empty())
@@ -269,30 +269,30 @@ std::string HttpResponse::buildFromFile(const HttpRequest& request, const std::s
         path += "index.html";
 
     if (checkResult != 200)
-        return buildError(checkResult, request);
+        return buildError(checkResult, request, config);
     if (!_readFile(path, _body))
-        return buildError(403, request);
+        return buildError(403, request, config);
 
     _contentType = _getMimeType(path);
     _statusCode = 200;
     return serialize(request.getMethod());
 }
 
-std::string HttpResponse::handleDelete(const HttpRequest& request, const std::string& path, int checkResult) {
+std::string HttpResponse::handleDelete(const HttpRequest& request, const std::string& path, int checkResult, ServerConfig &config) {
     _version = request.getVersion();
     if (_version.empty())
         _version = "HTTP/1.1";
     
     if (checkResult == 300) {
         if (rmdir(path.c_str()) != 0)
-            return buildError(403, request); // Forbidden
+            return buildError(403, request, config); // Forbidden
     }
     else if (checkResult == 200) {
         if (unlink(path.c_str()) != 0)
-            return buildError(403, request); // Forbidden
+            return buildError(403, request, config); // Forbidden
     }
     else
-        return buildError(checkResult, request);
+        return buildError(checkResult, request, config);
 
     _statusCode = 204; // No Content
     _body.clear();
@@ -311,7 +311,7 @@ Content-Type: text/plain
 
 Hello from webserv!
 ------WebKitFormBoundaryABC123-- */
-std::string HttpResponse::handleUpload(const HttpRequest& request, const std::string& uploadDir)
+std::string HttpResponse::handleUpload(const HttpRequest& request, const std::string& uploadDir, ServerConfig &config)
 {
     _version = request.getVersion();
     if (_version.empty())
@@ -329,7 +329,7 @@ std::string HttpResponse::handleUpload(const HttpRequest& request, const std::st
     {
         size_t boundaryPos = contentType.find("boundary=");
         if (boundaryPos == std::string::npos)
-            return buildError(400, request);
+            return buildError(400, request, config);
 
         std::string boundary = rawContentType.substr(boundaryPos + 9);
         size_t semicolon = boundary.find(';');
@@ -408,7 +408,7 @@ std::string HttpResponse::handleUpload(const HttpRequest& request, const std::st
                 if (_writeBinaryFile(outPath, partBody))
                     uploadedFilename = filename;
                 else
-                    return buildError(403, request);
+                    return buildError(403, request, config);
             }
 
             pos = nextBoundary;
@@ -432,12 +432,12 @@ std::string HttpResponse::handleUpload(const HttpRequest& request, const std::st
 
         std::string outPath = uploadBase + filename;
         if (!_writeBinaryFile(outPath, request.getBody()))
-            return buildError(403, request);
+            return buildError(403, request, config);
         uploadedFilename = filename;
     }
 
     if (uploadedFilename.empty())
-        return buildError(400, request);
+        return buildError(400, request, config);
 
     std::string location = request.getPath();
     if (!location.empty() && location[location.size() - 1] != '/')
@@ -451,7 +451,7 @@ std::string HttpResponse::handleUpload(const HttpRequest& request, const std::st
     return serialize(request.getMethod());
 }
 
-std::string HttpResponse::buildError(int statusCode, const HttpRequest& request) {
+std::string HttpResponse::buildError(int statusCode, const HttpRequest& request, ServerConfig &config) {
     _version = request.getVersion().empty() ? "HTTP/1.1" : request.getVersion();
     _statusCode = statusCode;
     _contentType = "text/html";
@@ -462,7 +462,7 @@ std::string HttpResponse::buildError(int statusCode, const HttpRequest& request)
 
     // Try to read template file
     std::string templateHtml;
-    if (!_readFile("www/html/errors/default.html", templateHtml)) {
+    if (!_readFile(config.getErrorPage(_statusCode), templateHtml)) {
         // Protecao caso alguem apague a pasta? nao sei se isto é necessario, mas é melhor do que retornar uma resposta vazia
         std::ostringstream oss;
         oss << "<!DOCTYPE html>\n<html>\n<head><title>"

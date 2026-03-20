@@ -1563,12 +1563,12 @@ server {{
     listen 127.0.0.1:8080;
     root {tp("www")};
     location /upload/ {{
-        upload_dir {tp("uploads")};
+        upload_dir {tp("www/uploads")};
         methods POST DELETE;
         client_max_body_size 10240;
     }}
     location /forbidden/ {{
-        upload_dir {tp("uploads/forbidden")};
+        upload_dir {tp("www/uploads/forbidden")};
         methods POST DELETE;
         client_max_body_size 10240;
     }}

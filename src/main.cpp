@@ -117,7 +117,7 @@ void printServers(const std::map<int, std::vector<ServerConfig> > &servers)
                       << server.getClientMaxBodySize() << ";\n";
 
             // ERROR PAGES
-            const std::map<int, std::string> &errorPages = server.getErrorPage();
+            const std::map<int, std::string> &errorPages = server.getAllErrorPages();
             for (std::map<int, std::string>::const_iterator errorIt = errorPages.begin();
                  errorIt != errorPages.end();
                  ++errorIt) {

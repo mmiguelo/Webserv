@@ -33,8 +33,9 @@ class ServerConfig {
 		const std::string& getRoot() const;
 		const std::vector<std::string>& getServerName() const;
 		const std::vector<std::string>& getMethods() const;
-		const std::map<int, std::string>& getErrorPage() const;
+		const std::map<int, std::string>& getAllErrorPages() const;
 		const std::vector<LocationConfig>& getLocations() const;
+		std::string getErrorPage(const int key);
 	
 		// Setters (set by ConfigParser)
 		void setClientMaxBodySize(size_t size);
