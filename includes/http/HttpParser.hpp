@@ -40,6 +40,7 @@ class HttpParser {
 
         // Feed raw data into the parser. Returns true when request is COMPLETE.
         bool            feed(const std::string& data, const ServerConfig& serverConfig);
+        void            resumeAfterContinue();
         void            reset();
 
         ParserState     getState() const;
@@ -48,6 +49,5 @@ class HttpParser {
         size_t          getHeaderSize() const;
         void            setServerConfig(const ServerConfig& serverConfig);
         ServerConfig&   getServerConfig() const;
-        // Return any remaining unconsumed bytes in the internal buffer and clear them.
         std::string     takeBuffer();
 };

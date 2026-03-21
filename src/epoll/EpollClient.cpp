@@ -109,6 +109,7 @@ void EpollClient::_processPipelines()
                 std::string cont = request.getVersion() + " 100 Continue\r\n\r\n";
                 send(_fd, cont.c_str(), cont.size(), 0);
                 _continueSent = true;
+                _parser.resumeAfterContinue();
             }
             break;
         }

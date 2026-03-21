@@ -320,10 +320,7 @@ std::string HttpResponse::handleUpload(const HttpRequest& request, const std::st
     std::string rawContentType = request.getHeader("content-type");
     std::string contentType = toLowerStr(rawContentType);
     std::string uploadBase = uploadDir;
-    unsigned long locationMaxSize = config.getClientMaxBodySize();
 
-    std::cout << "Location max size: " << locationMaxSize << std::endl;
-    std::cout << "Location base: " << uploadBase << std::endl;
     if (!uploadBase.empty() && uploadBase[uploadBase.size() - 1] != '/')
         uploadBase += '/';
 

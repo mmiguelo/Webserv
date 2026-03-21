@@ -324,3 +324,16 @@ bool HttpParser::_parseBodyChunked() {
         _buffer.erase(0, needed);
     }
 }
+
+void HttpParser::resumeAfterContinue() {
+    if (_state != PARSE_EXPECT_CONTINUE)
+        return;
+    std::string cl = _request.getHeader("content-length");
+    std::string te = _request.getHeader("transfer-encoding");
+    if (!cl.empty())
+        _state = PARSE_BODY_CONTENT_LENGTH;
+    else if (te.find("chunked") != std::string::npos)
+        _state = PARSE_BODY_CHUNKED;
+    else
+        _state = PARSE_COMPLETE;
+}

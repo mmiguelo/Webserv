@@ -1624,8 +1624,8 @@ server {{
                 "-F", f"file=@{tp('test.txt')}", url]
     try:
         r = subprocess.run(cmd_list, capture_output=True, text=True, timeout=12)
-        code = re.search(r"< HTTP/1\.\d (\d+)", r.stderr)
-        code = code.group(1) if code else "000"
+        matches = re.findall(r"< HTTP/1\.\d (\d+)", r.stderr)
+        code = matches[-1] if matches else "000"
         verbose = r.stderr + r.stdout
     except Exception as e:
         code, verbose = "000", str(e)
@@ -1644,8 +1644,8 @@ server {{
                  "-F", f"file=@{tp('test.txt')};filename=../../etc/passwd", url]
     try:
         r2 = subprocess.run(cmd_list2, capture_output=True, text=True, timeout=12)
-        code2 = re.search(r"< HTTP/1\.\d (\d+)", r2.stderr)
-        code2 = code2.group(1) if code2 else "000"
+        matches2 = re.findall(r"< HTTP/1\.\d (\d+)", r2.stderr)
+        code2 = matches2[-1] if matches2 else "000"
         v2    = r2.stderr + r2.stdout
     except Exception as e:
         code2, v2 = "000", str(e)
@@ -1662,8 +1662,8 @@ server {{
     cmd_list3 = ["curl", "-sv", "-X", "DELETE", "--max-time", "8", url3]
     try:
         r3 = subprocess.run(cmd_list3, capture_output=True, text=True, timeout=12)
-        code3 = re.search(r"< HTTP/1\.\d (\d+)", r3.stderr)
-        code3 = code3.group(1) if code3 else "000"
+        matches3 = re.findall(r"< HTTP/1\.\d (\d+)", r3.stderr)
+        code3 = matches3[-1] if matches3 else "000"
         v3    = r3.stderr + r3.stdout
     except Exception as e:
         code3, v3 = "000", str(e)
@@ -1697,8 +1697,8 @@ server {{
                  "-F", f"file=@{tp('large.bin')}", url]
     try:
         r6 = subprocess.run(cmd_list6, capture_output=True, text=True, timeout=12)
-        code6 = re.search(r"< HTTP/1\.\d (\d+)", r6.stderr)
-        code6 = code6.group(1) if code6 else "000"
+        matches6 = re.findall(r"< HTTP/1\.\d (\d+)", r6.stderr)
+        code6 = matches6[-1] if matches6 else "000"
         v6    = r6.stderr + r6.stdout
     except Exception as e:
         code6, v6 = "000", str(e)
@@ -1729,6 +1729,7 @@ def task_4_3():
 server {{
     listen 127.0.0.1:8080;
     root {tp("www")};
+    client_max_body_size 10M;
     location /upload/ {{
         upload_dir {tp("uploads")};
         methods POST DELETE;
@@ -1769,8 +1770,8 @@ server {{
                     "-F", f"file=@{path}", f"http://{HOST}:{PORT}/upload/"]
         try:
             r = subprocess.run(cmd_list, capture_output=True, text=True, timeout=65)
-            code = re.search(r"< HTTP/1\.\d (\d+)", r.stderr)
-            code = code.group(1) if code else "000"
+            matches = re.findall(r"< HTTP/1\.\d (\d+)", r.stderr)
+            code = matches[-1] if matches else "000"
             verbose = r.stderr + r.stdout
         except Exception as e:
             code, verbose = "000", str(e)
