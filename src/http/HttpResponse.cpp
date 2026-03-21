@@ -320,6 +320,10 @@ std::string HttpResponse::handleUpload(const HttpRequest& request, const std::st
     std::string rawContentType = request.getHeader("content-type");
     std::string contentType = toLowerStr(rawContentType);
     std::string uploadBase = uploadDir;
+    unsigned long locationMaxSize = config.getClientMaxBodySize();
+
+    std::cout << "Location max size: " << locationMaxSize << std::endl;
+    std::cout << "Location base: " << uploadBase << std::endl;
     if (!uploadBase.empty() && uploadBase[uploadBase.size() - 1] != '/')
         uploadBase += '/';
 
@@ -463,7 +467,6 @@ std::string HttpResponse::buildError(int statusCode, const HttpRequest& request,
     // Try to read template file
     std::string templateHtml;
     if (!_readFile(config.getErrorPage(_statusCode), templateHtml)) {
-        // Protecao caso alguem apague a pasta? nao sei se isto é necessario, mas é melhor do que retornar uma resposta vazia
         std::ostringstream oss;
         oss << "<!DOCTYPE html>\n<html>\n<head><title>"
             << statusCode << " " << getStatusMessage(statusCode)
@@ -473,7 +476,6 @@ std::string HttpResponse::buildError(int statusCode, const HttpRequest& request,
         _body = oss.str();
     }
     else {
-        // Replace variables with actual values
         templateHtml = replaceAll(templateHtml, "{{ERROR_CODE}}", codeStr.str());
         templateHtml = replaceAll(templateHtml, "{{ERROR_MESSAGE}}", getStatusMessage(statusCode));
         _body = templateHtml;
@@ -555,7 +557,7 @@ void HttpResponse::setAllow(const std::vector<std::string>& methods) {
         if (i > 0)
             _allow += ", ";
         _allow += methods[i];
-    } //TODO: isto é para o teste 3 da task 2.3. Precisa de ser revisto
+    }
 }
 
 int HttpResponse::getStatusCode() const {
