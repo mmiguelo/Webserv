@@ -214,7 +214,6 @@ void EpollClient::_buildRoutedResponse(const HttpRequest &request, HttpResponse 
             match.location->has_client_max_body_size &&
             request.getBody().size() > match.location->client_max_body_size)
         {
-            std::cout << "ENTREI AQUI" << std::endl;
             responseStr = response.buildError(413, request, *_config);
             _closeAfterSend = true;
             return;
