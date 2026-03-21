@@ -22,15 +22,17 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ─────────────────────────────── CONSTANTS ──────────────────────────────────
 
-ALL_TASKS  = ["1.1", "1.2", "1.3", "2.1", "2.2", "2.3", "3.1", "3.2", "3.3", "4.1", "4.2", "4.3"]
-BINARY     = "./webserv"
-HOST       = "127.0.0.1"
-PORT       = 8080
-TESTER_DIR = "tester"          # ← all fixtures live here; cleanup only touches this
+ALL_TASKS   = ["1.1", "1.2", "1.3", "2.1", "2.2", "2.3", "3.1", "3.2", "3.3", "4.1", "4.2", "4.3"]
+BINARY      = "./webserv"
+HOST        = "127.0.0.1"
+PORT        = 8080
+TESTER_DIR  = "tester"          # ← all fixtures live here; cleanup only touches this
+WEBSERV_DIR = "webserv"         # ← traces file lives here; never cleaned up by tester
 
 def tp(*parts: str) -> str:
     """Return a path rooted inside TESTER_DIR."""
     return os.path.join(TESTER_DIR, *parts)
+
 
 # ─────────────────────────────── COLOURS ────────────────────────────────────
 
@@ -156,6 +158,29 @@ def tcp_trace(host: str, port: int, sent: bytes, received: bytes,
 
 # ─────────────────────────────── SUMMARY ────────────────────────────────────
 
+def _write_traces_file(failures: list):
+    """Write failure details (plain text, no ANSI) next to tester.py as 'traces'."""
+    ansi_escape = re.compile(r"\x1b\[[0-9;]*m")
+
+    def strip(s: str) -> str:
+        return ansi_escape.sub("", s)
+
+    # Write next to tester.py itself — avoids any collision with the ./webserv binary
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "traces")
+    with open(path, "w") as fh:
+        if not failures:
+            fh.write("All tests passed — no failures to report.\n")
+            return
+        fh.write("━━━━━━━━━━━━  FAILURE DETAILS  ━━━━━━━━━━━━\n")
+        for r in failures:
+            fh.write(f"\n✗ [Task {r['task']}]  {r['name']}\n")
+            if r.get("trace"):
+                fh.write(strip(r["trace"]) + "\n")
+            elif r.get("detail"):
+                fh.write(f"  detail: {r['detail']}\n")
+    print(f"  {dim('traces written to')} {path}")
+
+
 def print_summary():
     print()
     print(bold("━━━━━━━━━━━━━━  SUMMARY  ━━━━━━━━━━━━━━"))
@@ -182,6 +207,7 @@ def print_summary():
     # ── Failure traces ────────────────────────────────────────────────────────
     failures = [r for r in _results if r["passed"] is False]
     if not failures:
+        _write_traces_file([])
         return
 
     print(bold("━━━━━━━━━━━━  FAILURE DETAILS  ━━━━━━━━━━━━"))
@@ -193,6 +219,8 @@ def print_summary():
         elif r.get("detail"):
             print(_box_row(f"{dim('detail')} {r['detail']}"))
     print()
+    _write_traces_file(failures)
+
 
 # ─────────────────────────────── SERVER ─────────────────────────────────────
 
@@ -383,6 +411,7 @@ def cleanup():
             shutil.rmtree(TESTER_DIR, ignore_errors=True)
         except Exception:
             pass
+
 
 # ─────────────────────────────── TASK 1.1 ───────────────────────────────────
 
@@ -665,6 +694,7 @@ server {{
                trace=make_trace(cmd_list, "HTTP 1xx-5xx", f"HTTP {code}", verbose))
     stop_server()
 
+
 # ─────────────────────────────── TASK 2.1 ───────────────────────────────────
 
 def task_2_1():
@@ -944,6 +974,7 @@ def task_2_2():
 
     stop_server()
 
+
 # ─────────────────────────────── TASK 2.3 ───────────────────────────────────
 
 def task_2_3():
@@ -1168,6 +1199,7 @@ server {{
                trace=make_trace(f"{BINARY} {tp('config/test6_nomatch.conf')}",
                                 "port 8080 open", "unreachable"))
     stop_server()
+
 
 # ─────────────────────────────── TASK 3.1 ───────────────────────────────────
 
@@ -1441,6 +1473,7 @@ server {{
 
     stop_server()
 
+
 # ─────────────────────────────── TASK 4.1 ───────────────────────────────────
 
 def task_4_1():
@@ -1550,25 +1583,28 @@ def task_4_2():
     _current_task = "4.2"
     print(f"\n{cyan(bold('── Task 4.2  Uploads ──'))}")
 
+    # NOTE: upload dirs are created directly under tester/ (not tester/www/)
+    # so the Validator can verify they exist before the server starts.
     mkdirp(tp("uploads"))
     mkdirp(tp("uploads/forbidden"))
     write_file(tp("test.txt"), "hello world\n")
     write_file(tp("large.bin"), os.urandom(15 * 1024))   # 15 KB > 10 KB limit
     shutil.copy(tp("test.txt"), tp("uploads/test.txt"))
     shutil.copy(tp("test.txt"), tp("uploads/forbidden/test.txt"))
-    os.chmod(tp("uploads/forbidden"), 0o555)
+    # chmod deferred — must happen AFTER start_server so the Validator's
+    # access(W_OK) check passes at startup, then test 5 locks it down.
 
     write_file(tp("config/upload.conf"), f"""\
 server {{
     listen 127.0.0.1:8080;
     root {tp("www")};
     location /upload/ {{
-        upload_dir {tp("www/uploads")};
+        upload_dir {tp("uploads")};
         methods POST DELETE;
         client_max_body_size 10240;
     }}
     location /forbidden/ {{
-        upload_dir {tp("www/uploads/forbidden")};
+        upload_dir {tp("uploads/forbidden")};
         methods POST DELETE;
         client_max_body_size 10240;
     }}
@@ -1647,6 +1683,7 @@ server {{
            trace=make_trace(cmd4, "HTTP 404", f"HTTP {code4}", v4))
 
     # Test 5: DELETE without permission → 403
+    os.chmod(tp("uploads/forbidden"), 0o555)  # lock down NOW, server already validated it
     code5, v5, cmd5 = curl_code_v(
         f"http://{HOST}:{PORT}/forbidden/test.txt", method="DELETE")
     record("Test5: DELETE without write permission → 403", code5 == "403",
@@ -1785,7 +1822,8 @@ def main():
             "Examples:\n"
             "  python3 tester.py 2.3   # runs 1.1 → 1.2 → 1.3 → 2.1 → 2.2 → 2.3\n"
             "  python3 tester.py 4.3   # runs all tasks\n\n"
-            f"All temporary files are created under ./{TESTER_DIR}/ and cleaned up from there only."
+            f"All temporary files are created under ./{TESTER_DIR}/ and cleaned up from there only.\n"
+            f"Failure traces are written to ./{WEBSERV_DIR}/traces after each run."
         ),
     )
     parser.add_argument("task", help="target task  (e.g. 2.3 or 4.1)")
@@ -1803,6 +1841,7 @@ def main():
     print(bold(f"  webserv tester  —  running up to task {target}"))
     print(bold(f"  Tasks : {', '.join(tasks_to_run)}"))
     print(bold(f"  Sandbox: ./{TESTER_DIR}/"))
+    print(bold(f"  Traces : ./{WEBSERV_DIR}/traces"))
     print(bold(f"{'━'*48}"))
 
     if not os.path.isfile(BINARY):
