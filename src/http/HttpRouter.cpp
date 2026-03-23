@@ -139,3 +139,7 @@ bool HttpRouter::validatePath(const std::string& path, const std::string& root) 
 
 	return absPath.compare(0, absRoot.length(), absRoot) == 0;
 }
+
+void HttpRouter::detectCGI(HttpRouteMatch& routeMatch) {
+	
+}
