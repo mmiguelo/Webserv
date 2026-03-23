@@ -12,7 +12,6 @@ class HttpRouter {
 		static bool validatePath(const std::string& path, const std::string& root);
 		static bool isCGI (const LocationConfig& location, const HttpRequest& request, std::string& cgiInterpreter); //função para verificar se o request deve ser tratado como CGI
 		static bool checkMethodAllowed(const LocationConfig& location, const HttpRequest& request); //função para verificar se o método do request é permitido na location
-		void detectCGI(HttpRouteMatch& routeMatch);
 	public:
 		HttpRouteMatch route(const HttpRequest& request, const ServerConfig& serverConfig); //a struct vai ser preenchida aqui, recebendo uma ref de um Request e d um ServerConfig, e vai ser retornada para o HttpHandler, que vai usar a struct para decidir como tratar o request
 };

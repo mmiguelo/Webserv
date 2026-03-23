@@ -97,7 +97,7 @@ bool HttpRouter::isCGI(const LocationConfig& location, const HttpRequest& reques
 
 	for (std::map<std::string, std::string>::const_iterator it = location.cgi_ext.begin(); it != location.cgi_ext.end(); ++it) {
 		const std::string& extension = it->first;
-		if (requestPath.length() >= extension.length()) {
+		if (requestPath.length() >= extension.length()) { //meaning 
 			if (requestPath.substr(requestPath.length() - extension.length()) == extension) {
 				cgiInterpreter = it->second;
 				return true;
@@ -138,8 +138,4 @@ bool HttpRouter::validatePath(const std::string& path, const std::string& root) 
 		absRoot += '/';
 
 	return absPath.compare(0, absRoot.length(), absRoot) == 0;
-}
-
-void HttpRouter::detectCGI(HttpRouteMatch& routeMatch) {
-	
 }
