@@ -210,34 +210,35 @@ void EpollClient::_buildRoutedResponse(const HttpRequest &request, HttpResponse 
         _closeAfterSend = true;
     }
     else if (match.executeCGI)
-    {
-        responseStr = response.buildError(501, request, *_config);
-    }
+        responseStr = response.handleCgi(request, *_config);
     else
+       _buildFromFile(request, response, match, responseStr);
+}
+
+void EpollClient::_buildFromFile(const HttpRequest &request, HttpResponse &response, const HttpRouteMatch &match, std::string &responseStr)
+{
+    if (request.getMethod() == METHOD_POST && !match.upload_dir.empty())
     {
-        if (request.getMethod() == METHOD_POST && !match.upload_dir.empty())
-        {
-            responseStr = response.handleUpload(request, match.upload_dir, *_config);
-            if (response.getStatusCode() >= 400)
-                _closeAfterSend = true;
-            return;
-        }
-        struct stat st;
-        int result;
-        if (stat(match.path.c_str(), &st) != 0)
-            responseStr = response.buildError(404, request, *_config);
-        else {
-            result = response.checkFile(st);
-            
-            if (request.getMethod() == METHOD_DELETE)
-                responseStr = response.handleDelete(request, match.path, result, *_config);
-            else if (result == 300)
-                responseStr = response.buildFromDirectory(request, match.path, match.autoindex, *_config);
-            else
-                responseStr = response.buildFromFile(request, match.path, result, *_config);
-            if (response.getStatusCode() >= 400)
-                _closeAfterSend = true;
-        }
+        responseStr = response.handleUpload(request, match.upload_dir, *_config);
+        if (response.getStatusCode() >= 400)
+            _closeAfterSend = true;
+        return;
+    }
+    struct stat st;
+    int result;
+    if (stat(match.path.c_str(), &st) != 0)
+        responseStr = response.buildError(404, request, *_config);
+    else {
+        result = response.checkFile(st);
+        
+        if (request.getMethod() == METHOD_DELETE)
+            responseStr = response.handleDelete(request, match.path, result, *_config);
+        else if (result == 300)
+            responseStr = response.buildFromDirectory(request, match.path, match.autoindex, *_config);
+        else
+            responseStr = response.buildFromFile(request, match.path, result, *_config);
+        if (response.getStatusCode() >= 400)
+            _closeAfterSend = true;
     }
 }
 

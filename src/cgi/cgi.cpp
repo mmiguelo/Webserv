@@ -1,14 +1,10 @@
 #include "cgi.hpp"
 
-Cgi::Cgi() {
-    // Initialize CGI environment variables already known
-    setEnv("GATEWAY_INTERFACE", "CGI/1.1");
-    setEnv("SERVER_SOFTWARE", "webserv/1.0");
-}
+Cgi::Cgi() {}
 
 Cgi::~Cgi() {}
 
-void Cgi::setEnv(const std::string& key, const std::string& value) {
+void Cgi::set(const std::string& key, const std::string& value) {
     _env[key] = value;
 }
 

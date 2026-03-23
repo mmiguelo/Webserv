@@ -452,6 +452,23 @@ std::string HttpResponse::handleUpload(const HttpRequest& request, const std::st
     return serialize(request.getMethod());
 }
 
+std::string HttpResponse::handleCgi(const HttpRequest& request, ServerConfig &config, const int port) {
+    Cgi cgi;
+
+    int listenPort = port;
+    cgi.set("REQUEST_METHOD", request.getMethod());
+    cgi.set("QUERY_STRING", request.getQueryString());
+    cgi.set("CONTENT_TYPE", request.getHeader("content-type"));
+    cgi.set("CONTENT_LENGHT", request.getHeader("content-length"));
+    cgi.set("SCRIPT_FILENAME", request.getPath());
+    cgi.set("PATH_INFO", request.getPath());
+    cgi.set("SERVER_NAME", config.getServerName());
+    cgi.set("SERVER_PORT", listenPort);
+    cgi.set("SERVER_PROTOCOL", request.getVersion());
+    cgi.set("SERVER_SOFTWARE", "webserv/1.0");
+    cgi.set("GATEWAY_INTERFACE", "CGI/1.1");
+}
+
 std::string HttpResponse::buildError(int statusCode, const HttpRequest& request, ServerConfig &config) {
     _version = request.getVersion().empty() ? "HTTP/1.1" : request.getVersion();
     _statusCode = statusCode;

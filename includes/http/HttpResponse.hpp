@@ -44,6 +44,7 @@ class HttpResponse {
         std::string buildFromDirectory(const HttpRequest& request, const std::string& dirPath, bool autoindex, ServerConfig &config);
         std::string handleDelete(const HttpRequest& request, const std::string& path, int checkResult, ServerConfig &config);
         std::string handleUpload(const HttpRequest& request, const std::string& uploadDir, ServerConfig &server);
+        std::string handleCgi(const HttpRequest& request, ServerConfig &config, const int port);
         std::string buildAutoIndex(const HttpRequest& request, const std::string& dirPath, ServerConfig &config);
         std::string serialize(HttpMethod method) const;
 

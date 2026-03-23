@@ -20,7 +20,7 @@ class Cgi {
     public:
         Cgi();
         ~Cgi();
-        void setEnv(const std::string& key, const std::string& value);
+        void set(const std::string& key, const std::string& value);
         std::string get(const std::string& key) const;
         char** getEnv() const;
         void clearEnv(char **env) const;
