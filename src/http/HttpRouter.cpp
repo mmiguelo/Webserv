@@ -14,6 +14,14 @@ HttpRouteMatch HttpRouter::route(const HttpRequest& request, const ServerConfig&
 	}
 	match.location = bestLocation;
 
+	// URI TOO LONG
+	if (request.getMethod() == METHOD_POST
+		&& match.location->has_client_max_body_size &&
+		request.getBody().size() > match.location->client_max_body_size) {
+		match.errorCode = 413;
+		return match;
+	}
+
 	//REDIRECT
 	if(bestLocation->has_redirect) {
 		match.errorCode = bestLocation->redirect_code;
