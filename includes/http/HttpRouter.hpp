@@ -14,6 +14,7 @@ class HttpRouter {
 		static bool checkMethodAllowed(const LocationConfig& location, const HttpRequest& request); //função para verificar se o método do request é permitido na location
 	public:
 		HttpRouteMatch route(const HttpRequest& request, const ServerConfig& serverConfig); //a struct vai ser preenchida aqui, recebendo uma ref de um Request e d um ServerConfig, e vai ser retornada para o HttpHandler, que vai usar a struct para decidir como tratar o request
+		
 };
 
 #endif

@@ -131,13 +131,44 @@ std::string toAbsolutePath(const std::string& path) {
 	if (path.empty())
 		return path;
 	// Convert relative to absolute (prepend cwd)
-	// Paths like "/www/html" are treated as relative to cwd, not system root
-	char cwd[PATH_MAX];
-	if (getcwd(cwd, sizeof(cwd)) == NULL)
+	char* cwd = std::getenv("PWD");
+	if (!cwd)
 		return path; // fallback to original if getcwd fails
 	std::string cwdStr(cwd);
-	// Ensure there's a slash between cwd and path
-	if (!cwdStr.empty() && cwdStr[cwdStr.length() - 1] != '/' && path[0] != '/')
-		cwdStr += "/";
-	return (cwdStr + path);
+    std::string fullPath;
+    if (path[0] == '/')
+		fullPath = path;
+	else {
+		// Ensure there's a slash between cwd and path
+		if (!cwdStr.empty() && cwdStr[cwdStr.length() - 1] != '/')
+			cwdStr += "/";
+		fullPath = cwdStr + path;
+	} //an example would be: 
+	return normalizePath(fullPath);
+}
+
+std::string normalizePath(const std::string& path)
+{
+	std::vector<std::string> parts;
+	std::stringstream ss(path); // to split the path between '/'
+	std::string item;
+
+	while (std::getline(ss, item, '/')) { // read till '/'
+		if (item.empty() || item == ".")
+			continue; // ignore useless parts
+		if (item == "..") {
+			if (!parts.empty())
+				parts.pop_back(); // we want to go one folder back
+                //so, rm the last part; example:
+                // "bom/dia/vietname" becomes "bom/dia"
+		} else
+			parts.push_back(item); // add this bit
+	}
+	std::string result;
+	for (size_t i = 0; i < parts.size(); i++)
+		result += "/" + parts[i];
+
+	if (result.empty())
+		result = "/";
+	return result;
 }

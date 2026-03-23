@@ -128,13 +128,14 @@ std::string HttpRouter::resolveFilesystemPath(const LocationConfig& location, co
 }
 
 bool HttpRouter::validatePath(const std::string& path, const std::string& root) {
-    char realRoot[PATH_MAX];
-    if (realpath(root.c_str(), realRoot) == NULL)
-        return false;
-    std::string rootStr(realRoot);
-    char realPath[PATH_MAX];
-    if (realpath(path.c_str(), realPath) == NULL)
-        return true;
-    std::string pathStr(realPath);
-    return pathStr.compare(0, rootStr.length(), rootStr) == 0;
+	std::string absPath = toAbsolutePath(path);
+	std::string absRoot = toAbsolutePath(root);
+
+	if (absRoot == "/")
+		return true;
+
+	if (absRoot[absRoot.length() - 1] != '/')
+		absRoot += '/';
+
+	return absPath.compare(0, absRoot.length(), absRoot) == 0;
 }
