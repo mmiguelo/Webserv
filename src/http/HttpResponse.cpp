@@ -460,13 +460,21 @@ std::string HttpResponse::handleCgi(const HttpRequest& request, ServerConfig &co
     cgi.set("QUERY_STRING", request.getQueryString());
     cgi.set("CONTENT_TYPE", request.getHeader("content-type"));
     cgi.set("CONTENT_LENGHT", request.getHeader("content-length"));
-    cgi.set("SCRIPT_FILENAME", request.getPath());
-    cgi.set("PATH_INFO", request.getPath());
+    cgi.set("SCRIPT_FILENAME", request.getPath()); //file path from root to filename
+    cgi.set("PATH_INFO", request.getPath()); //caminho completo
     cgi.set("SERVER_NAME", config.getServerName());
     cgi.set("SERVER_PORT", listenPort);
     cgi.set("SERVER_PROTOCOL", request.getVersion());
     cgi.set("SERVER_SOFTWARE", "webserv/1.0");
     cgi.set("GATEWAY_INTERFACE", "CGI/1.1");
+
+    const std::map<std::string, std::string> &headers = request.getHeaders();
+
+    std::map<std::string, std::string>::const_iterator it;
+    for (it = headers.begin(); it != headers.end(); ++it)
+        cgi.set("HTTP_" + normalize(it->first), it->second);
+
+    
 }
 
 std::string HttpResponse::buildError(int statusCode, const HttpRequest& request, ServerConfig &config) {
