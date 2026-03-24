@@ -134,6 +134,10 @@ bool HttpRouter::validatePath(const std::string& path, const std::string& root) 
 	if (absRoot == "/")
 		return true;
 
+	// Path is exactly the root directory
+	if (absPath == absRoot)
+		return true;
+
 	if (absRoot[absRoot.length() - 1] != '/')
 		absRoot += '/';
 

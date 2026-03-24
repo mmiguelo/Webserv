@@ -23,7 +23,7 @@ class ServerConfig {
 		std::map<int, std::string>		_error_page;					//opcional
 		std::vector<LocationConfig>		_locations;						//opcional
 		size_t							_largeHeaderBuffer_size;		//opcional
-		bool 							_hasLargeHeaderBuffers;			//opcional
+		//bool 							_hasLargeHeaderBuffers;			//opcional
 	
 	public:
 		ServerConfig();
