@@ -24,6 +24,9 @@ size_t ServerConfig::getClientMaxBodySize() const {
 const std::string& ServerConfig::getRoot() const {
 	return _root;
 }
+int ServerConfig::getPort() const {
+	return _listen[0].port;
+}
 const std::vector<std::string>& ServerConfig::getServerName() const {
 	return _server_name;
 }

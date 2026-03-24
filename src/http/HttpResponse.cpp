@@ -1,6 +1,7 @@
 #include "HttpResponse.hpp"
 #include "HttpRequest.hpp"
 #include "HttpRouter.hpp"
+#include "cgi.hpp"
 #include <sys/types.h>
 #include <dirent.h>
 #include <sys/stat.h>
@@ -8,6 +9,14 @@
 #include <unistd.h>
 #include <algorithm>
 #include "utils.hpp"
+#include <sys/wait.h>
+
+static std::string normalize(const std::string& name) {
+    std::string result = name;
+    for (size_t i = 0; i < result.size(); i++)
+        result[i] = (result[i] == '-') ? '_' : std::toupper(result[i]);
+    return result;
+}
 
 //define the static member
 std::map<int, std::string> HttpResponse::_codeMsg;
@@ -452,29 +461,108 @@ std::string HttpResponse::handleUpload(const HttpRequest& request, const std::st
     return serialize(request.getMethod());
 }
 
-std::string HttpResponse::handleCgi(const HttpRequest& request, ServerConfig &config, const int port) {
+std::string HttpResponse::handleCgi(const HttpRequest& request, ServerConfig &config, HttpRouteMatch& match) {
     Cgi cgi;
 
-    int listenPort = port;
-    cgi.set("REQUEST_METHOD", request.getMethod());
-    cgi.set("QUERY_STRING", request.getQueryString());
+    std::ostringstream oss;
+    oss << config.getPort(); // para ja retorna apenas _listen[0]
+    cgi.set("REQUEST_METHOD", methodToString(request.getMethod()));
+    cgi.set("QUERY_STRING", request.getQuery());
     cgi.set("CONTENT_TYPE", request.getHeader("content-type"));
-    cgi.set("CONTENT_LENGHT", request.getHeader("content-length"));
-    cgi.set("SCRIPT_FILENAME", request.getPath()); //file path from root to filename
-    cgi.set("PATH_INFO", request.getPath()); //caminho completo
-    cgi.set("SERVER_NAME", config.getServerName());
-    cgi.set("SERVER_PORT", listenPort);
+    cgi.set("CONTENT_LENGTH", request.getHeader("content-length"));
+    cgi.set("SCRIPT_FILENAME", match.path); //file path from root to filename
+    cgi.set("PATH_INFO", request.getPath()); //URL path
+    const std::vector<std::string>& name = config.getServerName();
+    cgi.set("SERVER_NAME", name.empty() ? "" : name[0]);
+    cgi.set("SERVER_PORT", oss.str());
     cgi.set("SERVER_PROTOCOL", request.getVersion());
     cgi.set("SERVER_SOFTWARE", "webserv/1.0");
     cgi.set("GATEWAY_INTERFACE", "CGI/1.1");
 
-    const std::map<std::string, std::string> &headers = request.getHeaders();
+    std::cout << "SCRIPT_FILENAME: " << match.path << std::endl;
+    std::cout << "PATH_INFO: " << request.getPath() << std::endl;
+
+    const std::map<std::string, std::string> &headers = request.getAllHeaders();
 
     std::map<std::string, std::string>::const_iterator it;
     for (it = headers.begin(); it != headers.end(); ++it)
         cgi.set("HTTP_" + normalize(it->first), it->second);
 
-    
+    char **envp = cgi.getEnv();
+
+    int stdin_pipe[2];
+    int stdout_pipe[2];
+    if (pipe(stdin_pipe) == -1 || pipe(stdout_pipe) == -1) {
+            cgi.freeEnv(envp);
+            return buildError(500, request, config);
+    }
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        cgi.freeEnv(envp);
+        return buildError(500, request, config);
+    }
+    if (pid == 0)
+    {
+        if (dup2(stdin_pipe[0], STDIN_FILENO) == -1) {
+            cgi.freeEnv(envp);
+            exit(1);
+        }
+        if (dup2(stdout_pipe[1], STDOUT_FILENO) == -1) {
+            cgi.freeEnv(envp);
+            exit(1);
+        }
+        close(stdin_pipe[1]);
+        close(stdout_pipe[0]);
+        char* argv[] = {(char*)match.cgiInterpreter.c_str(), (char*)match.path.c_str(), NULL};
+        execve(match.cgiInterpreter.c_str(), argv, envp);
+        //cgi.freeEnv(envp);
+        exit(1);
+    }
+    //parent
+    cgi.freeEnv(envp);
+    close(stdin_pipe[0]);
+    close(stdout_pipe[1]);
+
+    const std::string& body = request.getBody();
+    if (!body.empty())
+        write(stdin_pipe[1], body.data(), body.size());
+    close(stdin_pipe[1]);
+
+    std::string cgiOutput;
+    char buffer[4096];
+    ssize_t bytesRead;
+    while ((bytesRead = read(stdout_pipe[0], buffer, sizeof(buffer))) > 0)
+        cgiOutput.append(buffer, bytesRead);
+    close(stdout_pipe[0]);
+
+    int status;
+    waitpid(pid, &status, 0);
+
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+        return buildError(500, request, config);
+    return parseCgiOutput(cgiOutput, request, config);
+}
+
+std::string HttpResponse::parseCgiOutput(const std::string& output, const HttpRequest& request, ServerConfig& config) {
+    size_t headerEnd = output.find("\r\n\r\n");
+    size_t sep = 4;
+    if (headerEnd == std::string::npos) {
+        headerEnd = output.find("\n\n");
+        sep = 2;
+    }
+    if (headerEnd == std::string::npos)
+        return buildError(500, request, config);
+
+    std::string headerBlock = output.substr(0, headerEnd);
+    std::string body = output.substr(headerEnd + sep);
+
+    std::ostringstream oss;
+    oss << request.getVersion() << " 200 OK\r\n";
+    oss << headerBlock << "\r\n";
+    oss << "\r\n";
+    oss << body;
+    return oss.str();
 }
 
 std::string HttpResponse::buildError(int statusCode, const HttpRequest& request, ServerConfig &config) {

@@ -31,6 +31,7 @@ class ServerConfig {
 		const std::vector<ListenDirective>& getListenDirectives() const;
 		size_t getClientMaxBodySize() const;
 		const std::string& getRoot() const;
+		int getPort() const;
 		const std::vector<std::string>& getServerName() const;
 		const std::vector<std::string>& getMethods() const;
 		const std::map<int, std::string>& getAllErrorPages() const;

@@ -31,6 +31,7 @@ private:
     bool _keepAlive(const HttpRequest &request) const;
     bool _buildErrorResponse(const HttpRequest &request, HttpResponse &response, std::string &responseStr);
     void _buildRoutedResponse(const HttpRequest &request, HttpResponse &response, std::string &responseStr);
+    void _buildFromFile(const HttpRequest &request, HttpResponse &response, const HttpRouteMatch &match, std::string &responseStr);
     void _finalizeResponse(const HttpRequest &request, HttpResponse &response, std::string &responseStr, bool keepAlive);
     void _switchToWrite();
     void _switchToRead();

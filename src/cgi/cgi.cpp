@@ -1,4 +1,5 @@
 #include "cgi.hpp"
+#include <cstring>
 
 Cgi::Cgi() {}
 
@@ -24,15 +25,23 @@ char** Cgi::getEnv() const {
         std::strcpy(env[i], envVar.c_str());
         i++;
     }
-    env[i] = NULL; // Null-terminate the array
+    env[i] = NULL;
     return env;
 }
 
-void Cgi::clearEnv(char **env) const {
+void Cgi::freeEnv(char **env) const {
     if (!env)
         return;
     for (size_t i = 0; env[i] != NULL; i++) {
         delete env[i];
     }
     delete env;
+}
+
+void Cgi::setScriptPath(const std::string& path) {
+    _scriptpath = path;
+}
+
+std::string Cgi::getScriptPath() const {
+    return _scriptpath;
 }

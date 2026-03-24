@@ -2,6 +2,7 @@
 
 #include "HttpRequest.hpp"
 #include "ServerConfig.hpp"
+#include "HttpRouter.hpp"
 #include <string>
 #include <map>
 #include <iostream>
@@ -44,7 +45,8 @@ class HttpResponse {
         std::string buildFromDirectory(const HttpRequest& request, const std::string& dirPath, bool autoindex, ServerConfig &config);
         std::string handleDelete(const HttpRequest& request, const std::string& path, int checkResult, ServerConfig &config);
         std::string handleUpload(const HttpRequest& request, const std::string& uploadDir, ServerConfig &server);
-        std::string handleCgi(const HttpRequest& request, ServerConfig &config, const int port);
+        std::string handleCgi(const HttpRequest& request, ServerConfig &config, HttpRouteMatch& match);
+        std::string parseCgiOutput(const std::string& output, const HttpRequest& request, ServerConfig& config);
         std::string buildAutoIndex(const HttpRequest& request, const std::string& dirPath, ServerConfig &config);
         std::string serialize(HttpMethod method) const;
 

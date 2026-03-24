@@ -210,7 +210,7 @@ void EpollClient::_buildRoutedResponse(const HttpRequest &request, HttpResponse 
         _closeAfterSend = true;
     }
     else if (match.executeCGI)
-        responseStr = response.handleCgi(request, *_config);
+        responseStr = response.handleCgi(request, *_config, match);
     else
        _buildFromFile(request, response, match, responseStr);
 }
