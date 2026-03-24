@@ -1,12 +1,11 @@
 #include "EpollClient.hpp"
+#include "EpollServer.hpp"
 #include "utils.hpp"
-#include <sys/socket.h>
-#include <iostream>
-#include <cstring>
 
-EpollClient::EpollClient(int fd, int epollFd, ServerConfig *config)
-    : _fd(fd), _epollFd(epollFd), _config(config),
-      _lastActivity(time(NULL)), _continueSent(false), _closeAfterSend(false)
+EpollClient::EpollClient(int fd, int epollFd, ServerConfig *config, EpollServer *server)
+    : _fd(fd), _epollFd(epollFd), _config(config), _server(server),
+      _lastActivity(time(NULL)), _continueSent(false), _closeAfterSend(false),
+      _cgi_pid(-1), _cgi_stdin_fd(-1), _cgi_stdout_fd(-1), _cgi_input_offset(0), _cgi_start_time(0), _cgi_finished(false)
 {
 }
 
@@ -147,6 +146,9 @@ void EpollClient::_createResponse(bool complete)
         _buildRoutedResponse(request, response, responseStr);
     }
 
+    if (_cgi_pid != -1)
+        return;
+
     _finalizeResponse(request, response, responseStr, keepAlive);
 }
 
@@ -256,4 +258,71 @@ void EpollClient::_finalizeResponse(const HttpRequest &request, HttpResponse &re
 
     _sendBuffer += responseStr;
     _switchToWrite();
+}
+
+pid_t EpollClient::getCgiPid() const {
+    return _cgi_pid;
+}
+int EpollClient::getCgiStdinFd() const {
+    return _cgi_stdin_fd;
+}
+int EpollClient::getCgiStdoutFd() const {
+    return _cgi_stdout_fd;
+}
+std::string EpollClient::getCgiInputBuffer() const {
+    return _cgi_input_buffer;
+}
+std::string EpollClient::getCgiOutputBuffer() const {
+    return _cgi_output_buffer;
+}
+size_t EpollClient::getCgiInputOffset() const {
+    return _cgi_input_offset;
+}
+time_t EpollClient::getCgiStartTime() const {
+    return _cgi_start_time;
+}
+
+void EpollClient::setCgiInputOffset(size_t value) {
+    _cgi_input_offset = value;
+}
+
+void EpollClient::setCgiStdinFd(int fd) {
+    _cgi_stdin_fd = fd;
+}
+
+void EpollClient::setCgiStdoutFd(int fd) {
+    _cgi_stdout_fd = fd;
+}
+
+void EpollClient::setCgiPid(int pid) {
+    _cgi_pid = pid;
+}
+
+void EpollClient::setSendBuffer(const std::string &newBuffer) {
+    _sendBuffer = newBuffer;
+}
+
+std::string EpollClient::getSendBuffer() const {
+    return _sendBuffer;
+}
+
+void EpollClient::appendCgiStdoutBuffer(const std::string &other, size_t size) {
+    _cgi_output_buffer += std::string(other.c_str(), size);
+}
+
+void EpollClient::setCgiDone(bool flag) {
+    _cgi_finished = flag;
+}
+
+void EpollClient::startCgi(pid_t pid, int stdinFd, int stdoutFd, const std::string &body) {
+    _cgi_pid = pid;
+    _cgi_stdin_fd = stdinFd;
+    _cgi_stdout_fd = stdoutFd;
+    _cgi_input_buffer = body;
+    _cgi_input_offset = 0;
+    _cgi_output_buffer.clear();
+    _cgi_start_time = time(NULL);
+    _cgi_finished = false;
+
+    _server->registerCgi(_fd, _cgi_stdin_fd, _cgi_stdout_fd);
 }

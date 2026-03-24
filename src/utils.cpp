@@ -132,8 +132,9 @@ std::string toAbsolutePath(const std::string& path) {
 		return path;
 	// Convert relative to absolute (prepend cwd)
 	// Paths like "/www/html" are treated as relative to cwd, not system root
-	char cwd[PATH_MAX];
-	if (getcwd(cwd, sizeof(cwd)) == NULL)
+	char *cwd;
+    cwd = std::getenv("PWD");
+	if (cwd == NULL)
 		return path; // fallback to original if getcwd fails
 	std::string cwdStr(cwd);
 	// Ensure there's a slash between cwd and path
