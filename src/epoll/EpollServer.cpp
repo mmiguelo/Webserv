@@ -10,10 +10,7 @@ EpollServer::EpollServer() : _epollFd(-1)
 EpollServer::~EpollServer()
 {
     for (std::map<int, EpollClient *>::iterator it = _clients.begin(); it != _clients.end(); ++it)
-    {
-        close(it->first);
-        delete it->second;
-    }
+        _closeClient(it->first);
     for (std::set<int>::iterator it = _listenFds.begin(); it != _listenFds.end(); ++it)
         close(*it);
     if (_epollFd != -1)
@@ -101,8 +98,6 @@ int EpollServer::_createAndBindSocket(const std::string &host, int port)
     return fd;
 }
 
-// ─── Public API ──────────────────────────────────────────────────────────────
-
 void EpollServer::addServer(ServerConfig *config, int port)
 {
     int fd = _createAndBindSocket(config->getListenDirectives()[0].host, port);
@@ -133,7 +128,7 @@ void EpollServer::_acceptNewClient(int listenFd)
         }
         _setNonBlocking(clientFd);
         _registerToEpoll(clientFd, EPOLLIN | EPOLLERR | EPOLLHUP);
-        _clients[clientFd] = new EpollClient(clientFd, _epollFd, _fdToConfig[listenFd]);
+        _clients[clientFd] = new EpollClient(clientFd, _epollFd, _fdToConfig[listenFd], this);
         std::cout << "New Client fd=" << clientFd << std::endl;
     }
 }
@@ -142,9 +137,21 @@ void EpollServer::_closeClient(int fd)
 {
     if (_clients.count(fd) == 0)
         return;
+    
+    EpollClient *client = _clients[fd];
+
+    if (client->getCgiPid() != -1)
+    {
+        kill(client->getCgiPid(), SIGKILL);
+        waitpid(client->getCgiPid(), NULL, WNOHANG);
+    }
+    if (client->getCgiStdinFd() != -1)
+        _closeCgiFd(client->getCgiStdinFd());
+    if (client->getCgiStdoutFd() != -1)
+        _closeCgiFd(client->getCgiStdoutFd());
     epoll_ctl(_epollFd, EPOLL_CTL_DEL, fd, NULL);
     close(fd);
-    delete _clients[fd];
+    delete client;
     _clients.erase(fd);
     std::cout << "Connection closed on fd " << fd << std::endl;
 }
@@ -179,6 +186,7 @@ void EpollServer::run()
         }
 
         _checkTimeout();
+        _checkCgiTimeouts();
         for (int i = 0; i < n; i++)
         {
             int fd = _events[i].data.fd;
@@ -187,6 +195,18 @@ void EpollServer::run()
             if (_listenFds.count(fd))
             {
                 _acceptNewClient(fd);
+            }
+            else if (_cgi_fds.count(fd))
+            {
+                int clientFd = _cgi_fds[fd];
+                if (_clients.count(clientFd))
+                {
+                    EpollClient *client = _clients[clientFd];
+                    if (ev & (EPOLLIN | EPOLLHUP))
+                        _handleCgiRead(fd, client);
+                    else if (ev & EPOLLOUT)
+                        _handleCgiWrite(fd, client);
+                }
             }
             else if (_clients.count(fd))
             {
@@ -203,6 +223,114 @@ void EpollServer::run()
                         _closeClient(fd);
                 }
             }
+        }
+    }
+}
+
+void EpollServer::registerCgi(int clientFd, int cgiStdinFd, int cgiStdoutFd) {
+    _setNonBlocking(cgiStdinFd);
+    _setNonBlocking(cgiStdoutFd);
+
+    struct epoll_event ev;
+
+    ev.events = EPOLLOUT | EPOLLERR | EPOLLHUP;
+    ev.data.fd = cgiStdinFd;
+    epoll_ctl(_epollFd, EPOLL_CTL_ADD, cgiStdinFd, &ev);
+
+    ev.events = EPOLLIN | EPOLLERR | EPOLLHUP;
+    ev.data.fd = cgiStdoutFd;
+    epoll_ctl(_epollFd, EPOLL_CTL_ADD, cgiStdoutFd, &ev);
+
+    _cgi_fds[cgiStdinFd] = clientFd;
+    _cgi_fds[cgiStdoutFd] = clientFd;
+
+}
+
+void EpollServer::_closeCgiFd(int fd) {
+    epoll_ctl(_epollFd, EPOLL_CTL_DEL, fd, NULL);
+    close(fd);
+    _cgi_fds.erase(fd);
+}
+
+void EpollServer::_handleCgiWrite(int stdinFd, EpollClient *client) {
+    size_t bytes_remaining = client->getCgiInputBuffer().size() - client->getCgiInputOffset();
+    if (bytes_remaining == 0)
+    {
+        _closeCgiFd(stdinFd);
+        client->setCgiStdinFd(-1);
+        client->setCgiDone(true);
+        return;
+    }
+    ssize_t write_bytes = write(stdinFd, client->getCgiInputBuffer().data() + client->getCgiInputOffset(), bytes_remaining);
+    if (write_bytes < 0)
+        return;
+    client->setCgiInputOffset(client->getCgiInputOffset() + write_bytes);
+    if (client->getCgiInputOffset() >= client->getCgiInputBuffer().size())
+    {
+        _closeCgiFd(stdinFd);
+        client->setCgiStdinFd(-1);
+        client->setCgiDone(true);
+    }
+}
+
+void EpollServer::_handleCgiRead(int stdoutFd, EpollClient* client) {
+    char buffer[4096];
+    ssize_t read_bytes = read(stdoutFd, buffer, sizeof(buffer));
+
+
+    if (read_bytes < 0) {
+        return;
+    }
+    else if (read_bytes == 0) {
+        _closeCgiFd(stdoutFd);
+        client->setCgiStdoutFd(-1);
+        waitpid(client->getCgiPid(), NULL, WNOHANG);
+        client->setCgiPid(-1);
+        //std::string httpResponseCgi = CGIResponse::parseCgiOutput(client->getCgiOutputBuffer());
+        //client->setSendBuffer(httpResponseCgi);
+        struct epoll_event ev;
+        ev.data.fd = client->getFd();
+        ev.events = EPOLLOUT | EPOLLERR | EPOLLHUP;
+        epoll_ctl(_epollFd, EPOLL_CTL_MOD, client->getFd(), &ev);
+    }
+    else {
+        client->appendCgiStdoutBuffer(buffer, read_bytes);
+    }
+}
+
+void EpollServer::_checkCgiTimeouts() {
+    time_t now = time(NULL);
+
+    for (std::map<int, EpollClient *>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
+        EpollClient *client = it->second;
+
+        if (client->getCgiPid() == -1)
+            continue;
+        
+        if (now - client->getCgiStartTime() > CGI_TIMEOUT)
+        {
+            kill(client->getCgiPid(), SIGKILL);
+            waitpid(client->getCgiPid(), NULL, WNOHANG);
+
+            if (client->getCgiStdinFd() != -1) {
+                _closeCgiFd(client->getCgiStdinFd());
+                client->setCgiStdinFd(-1);
+            }
+            if (client->getCgiStdoutFd() != -1) {
+                _closeCgiFd(client->getCgiStdoutFd());
+                client->setCgiStdoutFd(-1);
+            }
+
+            client->setCgiPid(-1);
+
+            //build error response;
+            //parte onde coloco a resposta do dev B
+            //client->setSendBuffer(resposta)
+
+            struct epoll_event ev;
+            ev.data.fd = client->getFd();
+            ev.events = EPOLLOUT | EPOLLERR | EPOLLHUP;
+            epoll_ctl(_epollFd, EPOLL_CTL_MOD, client->getFd(), &ev);
         }
     }
 }
