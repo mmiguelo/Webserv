@@ -109,13 +109,13 @@ std::cout << "Token type-> "
 		  << '\n';
 }
 
-/* std::string normalizePath(const std::string& path)
+std::string normalizePath(const std::string& path)
 {
 	std::string finalPath = path;
     while (finalPath.length() > 1 && finalPath[finalPath.length() - 1] == '/')
         finalPath.erase(finalPath.length() - 1);
     return finalPath;
-} */
+}
 
 bool isNumber(const std::string& str) {
 	if (str.empty())
