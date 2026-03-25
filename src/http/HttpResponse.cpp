@@ -499,7 +499,6 @@ std::string HttpResponse::handleCgi(const HttpRequest& request, ServerConfig &co
         cgi.freeEnv(envp);
         return buildError(500, request, config);
     }
-    client->startCgi(pid, stdin_pipe[0], stdout_pipe[1], _cgiBody);
     if (pid == 0)
     {
         std::cout << "===== VOU ENTRAR NO CHILD PROCESS ==== " << std::endl;
@@ -521,28 +520,11 @@ std::string HttpResponse::handleCgi(const HttpRequest& request, ServerConfig &co
     }
     std::cout << "===== VOU ENTRAR NO PARENT PROCESS ==== " << std::endl;
     cgi.freeEnv(envp);
-    //close(stdin_pipe[0]);
-    //close(stdout_pipe[1]);
+    close(stdin_pipe[0]);
+    close(stdout_pipe[1]);
 
-    const std::string& body = request.getBody();
-    if (!body.empty())
-        write(stdin_pipe[1], body.data(), body.size());
-    close(stdin_pipe[1]);
-
-    std::string cgiOutput;
-    char buffer[4096];
-    ssize_t bytesRead;
-    while ((bytesRead = read(stdout_pipe[0], buffer, sizeof(buffer))) > 0)
-        cgiOutput.append(buffer, bytesRead);
-    close(stdout_pipe[0]);
-
-    int status;
-    waitpid(pid, &status, 0);
-
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
-        return buildError(500, request, config);
-    _cgiBody = parseCgiOutput(cgiOutput, request, config);
-    return _cgiBody;
+    client->startCgi(pid, stdin_pipe[1], stdout_pipe[0], request.getBody());
+    return std::string();
 }
 
 std::string HttpResponse::parseCgiOutput(const std::string& output, const HttpRequest& request, ServerConfig& config) {

@@ -204,9 +204,16 @@ void EpollServer::run()
                     std::cout << "===== ENTREI NO RUN DO CGI EPOLLSERVER ==== " << std::endl;
                     EpollClient *client = _clients[clientFd];
                     if (ev & (EPOLLIN | EPOLLHUP))
+                    {
+                        std::cout << "Vou ler o CGI" << std::endl;
                         _handleCgiRead(fd, client);
+                    }
                     else if (ev & EPOLLOUT)
+                    {
+                        std::cout << "Vou escrever o CGI" << std::endl;
                         _handleCgiWrite(fd, client);
+
+                    }
                 }
             }
             else if (_clients.count(fd))
@@ -244,9 +251,9 @@ void EpollServer::registerCgi(int clientFd, int cgiStdinFd, int cgiStdoutFd) {
 
     _cgi_fds[cgiStdinFd] = clientFd;
     _cgi_fds[cgiStdoutFd] = clientFd;
-
-    std::cout << "===== CGI FDS: ==== " << _cgi_fds[cgiStdinFd] << " \\ " << _cgi_fds[cgiStdoutFd] << std::endl;
-
+    
+    std::cout << "registerCgi: client=" << clientFd << " stdinFd=" << cgiStdinFd
+        << " stdoutFd=" << cgiStdoutFd << std::endl;
 
 }
 
@@ -290,12 +297,7 @@ void EpollServer::_handleCgiRead(int stdoutFd, EpollClient* client) {
         client->setCgiStdoutFd(-1);
         waitpid(client->getCgiPid(), NULL, WNOHANG);
         client->setCgiPid(-1);
-        //std::string httpResponseCgi = CGIResponse::parseCgiOutput(client->getCgiOutputBuffer());
-        //client->setSendBuffer(httpResponseCgi);
-        struct epoll_event ev;
-        ev.data.fd = client->getFd();
-        ev.events = EPOLLOUT | EPOLLERR | EPOLLHUP;
-        epoll_ctl(_epollFd, EPOLL_CTL_MOD, client->getFd(), &ev);
+        client->finalizeCgi();
     }
     else {
         client->appendCgiStdoutBuffer(buffer, read_bytes);

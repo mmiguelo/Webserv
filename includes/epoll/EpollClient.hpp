@@ -84,4 +84,5 @@ public:
     void setCgiPid(int pid);
     void appendCgiStdoutBuffer(const std::string &other, size_t size);
     void setCgiDone(bool flag);
+    void finalizeCgi();
 };

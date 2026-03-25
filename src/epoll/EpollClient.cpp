@@ -327,3 +327,27 @@ void EpollClient::startCgi(pid_t pid, int stdinFd, int stdoutFd, const std::stri
     std::cout << "===== VOU REGISTAR O CGI ==== " << std::endl;
     _server->registerCgi(_fd, _cgi_stdin_fd, _cgi_stdout_fd);
 }
+
+void EpollClient::finalizeCgi() {
+    // Build HTTP response from CGI raw output
+    HttpResponse resp;
+    // parser is a member: use it to get the original request
+    HttpRequest request = _parser.getRequest();
+    std::string httpResp = resp.parseCgiOutput(_cgi_output_buffer, request, *_config);
+    setSendBuffer(httpResp);
+
+    // cleanup CGI state
+    _cgi_output_buffer.clear();
+    _cgi_input_buffer.clear();
+    _cgi_input_offset = 0;
+    _cgi_finished = true;
+    _cgi_pid = -1;
+    _cgi_stdin_fd = -1;
+    _cgi_stdout_fd = -1;
+
+    // switch client socket to write
+    struct epoll_event ev;
+    ev.data.fd = _fd;
+    ev.events = EPOLLOUT | EPOLLERR | EPOLLHUP;
+    epoll_ctl(_epollFd, EPOLL_CTL_MOD, _fd, &ev);
+}
