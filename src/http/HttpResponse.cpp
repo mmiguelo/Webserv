@@ -462,6 +462,10 @@ std::string HttpResponse::handleUpload(const HttpRequest& request, const std::st
 }
 
 std::string HttpResponse::handleCgi(const HttpRequest& request, ServerConfig &config, HttpRouteMatch& match, EpollClient *client) {
+    struct stat st;
+    if (stat(match.path.c_str(), &st) != 0 || !S_ISREG(st.st_mode))
+        return buildError(404, request, config);
+
     Cgi cgi;
 
     std::ostringstream oss;
