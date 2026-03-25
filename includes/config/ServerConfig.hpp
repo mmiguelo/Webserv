@@ -48,5 +48,7 @@ class ServerConfig {
 		void addErrorPage(int code, const std::string& path);
 		void addLocation(const LocationConfig& location);
 		void addListenDirective(const std::string& host, int port);
+		void setLargeHeaderBufferSize(size_t size);
 };
+
 #endif

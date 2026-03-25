@@ -39,6 +39,9 @@ const std::map<int, std::string>& ServerConfig::getAllErrorPages() const {
 const std::vector<LocationConfig>& ServerConfig::getLocations() const {
 	return _locations;
 }
+void ServerConfig::setLargeHeaderBufferSize(size_t size) {
+	_largeHeaderBuffer_size = size;
+}
 
 // Setters (set by ConfigParser)
 void ServerConfig::addListenDirective(const std::string& host, int port) {
@@ -62,11 +65,9 @@ void ServerConfig::addErrorPage(int code, const std::string& path) {
 void ServerConfig::addLocation(const LocationConfig& location) {
 	_locations.push_back(location);
 }
-
 std::string ServerConfig::getErrorPage(const int key) {
 	return _error_page[key];
 }
-
 size_t ServerConfig::getLargeHeaderBufferSize() const {
 	return _largeHeaderBuffer_size;
 }
