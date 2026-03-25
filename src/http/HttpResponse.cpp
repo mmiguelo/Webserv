@@ -513,7 +513,6 @@ std::string HttpResponse::handleCgi(const HttpRequest& request, ServerConfig &co
         close(stdin_pipe[1]);
         close(stdout_pipe[0]);
         char* argv[] = {(char*)match.cgiInterpreter.c_str(), (char*)match.path.c_str(), NULL};
-        std::cout << "ANTES EXECVE" << std::endl;
         execve(match.cgiInterpreter.c_str(), argv, envp);
         std::cout << "DEPOIS EXECVE" << std::endl;
         exit(1);
@@ -541,7 +540,7 @@ std::string HttpResponse::parseCgiOutput(const std::string& output, const HttpRe
     std::string body = output.substr(headerEnd + sep);
 
     std::ostringstream oss;
-    oss << request.getVersion() << " 200 OK\r\n";
+    oss << "HTTP/1.1" << " 200 OK\r\n";
     oss << headerBlock << "\r\n";
     oss << "\r\n";
     oss << body;
