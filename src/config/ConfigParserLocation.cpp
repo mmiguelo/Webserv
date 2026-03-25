@@ -13,10 +13,8 @@ void ConfigParser::parseLocation(ServerConfig &serverBlock)
 	expect(LBRACE);
 	while (!isEnd() && peek().type != RBRACE)
 	{
-		if (location.root.empty())
-			location.root = serverBlock.getRoot();
 		if (matchWord("root"))
-			parseLocationRoot(location);
+		parseLocationRoot(location);
 		else if (matchWord("upload_dir"))
 			parseUploadDir(location);
 		else if (matchWord("autoindex"))
@@ -37,5 +35,7 @@ void ConfigParser::parseLocation(ServerConfig &serverBlock)
 			throw parseError("Unexpected directive in location block");
 	}
 	expect(RBRACE);
+	if (location.root.empty())
+			location.root = serverBlock.getRoot();
 	serverBlock.addLocation(location);
 }

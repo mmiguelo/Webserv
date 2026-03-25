@@ -28,9 +28,8 @@ HttpRouteMatch HttpRouter::route(const HttpRequest& request, const ServerConfig&
 	}
 
 	//PATH
-	std::string effectiveRoot = bestLocation->upload_dir.empty() ? bestLocation->root : bestLocation->upload_dir;
 	std::string path = resolveFilesystemPath(*bestLocation, request);
-	if(!validatePath(path, effectiveRoot)) {
+	if(!validatePath(path, bestLocation->root)) {
 		match.errorCode = 404;
 		return match;
 	}
@@ -38,13 +37,16 @@ HttpRouteMatch HttpRouter::route(const HttpRequest& request, const ServerConfig&
 
 	//CGI
 	std::string cgiInterpreter;
-	if (isCGI(*bestLocation, request, cgiInterpreter)) {
+	if (isCGI(*bestLocation, path, cgiInterpreter)) {
+		if (!isFileExecutable(path)) {
+			match.errorCode = 403;
+			return match;
+		}
 		match.executeCGI = true;
 		match.cgiInterpreter = cgiInterpreter;
 	}
 	match.autoindex = bestLocation->autoindex;
 	match.upload_dir = bestLocation->upload_dir;
-	match.errorCode = 0;
 	return match;
 }
 
@@ -90,19 +92,18 @@ bool HttpRouter::checkMethodAllowed(const LocationConfig& location, const HttpRe
 	return false;
 }
 
-bool HttpRouter::isCGI(const LocationConfig& location, const HttpRequest& request, std::string& cgiInterpreter) {
-	const std::string& requestPath = request.getPath();
+bool HttpRouter::isCGI(const LocationConfig& location, const std::string& path, std::string& cgiInterpreter) {
+	const std::string& rootPath = path;
 	if (location.cgi_ext.empty())
 		return false;
 
-	for (std::map<std::string, std::string>::const_iterator it = location.cgi_ext.begin(); it != location.cgi_ext.end(); ++it) {
-		const std::string& extension = it->first;
-		if (requestPath.length() >= extension.length()) {
-			if (requestPath.substr(requestPath.length() - extension.length()) == extension) {
-				cgiInterpreter = it->second;
-				return true;
-			}
-		}
+	size_t dotPos = rootPath.rfind('.');
+	if (dotPos == std::string::npos || dotPos == rootPath.length() - 1)
+		return false;
+	std::string extension = rootPath.substr(dotPos);
+	if (location.cgi_ext.count(extension)) {
+		cgiInterpreter = location.cgi_ext.at(extension);
+		return true;
 	}
 	return false;
 }
@@ -128,13 +129,22 @@ std::string HttpRouter::resolveFilesystemPath(const LocationConfig& location, co
 }
 
 bool HttpRouter::validatePath(const std::string& path, const std::string& root) {
-    char realRoot[PATH_MAX];
-    if (realpath(root.c_str(), realRoot) == NULL)
-        return false;
-    std::string rootStr(realRoot);
-    char realPath[PATH_MAX];
-    if (realpath(path.c_str(), realPath) == NULL)
-        return true;
-    std::string pathStr(realPath);
-    return pathStr.compare(0, rootStr.length(), rootStr) == 0;
+	std::string absPath = toAbsolutePath(path);
+	std::string absRoot = toAbsolutePath(root);
+
+	if (absRoot == "/")
+		return true;
+
+	// Path is exactly the root directory
+	if (absPath == absRoot)
+		return true;
+
+	if (absRoot[absRoot.length() - 1] != '/')
+		absRoot += '/';
+
+	return absPath.compare(0, absRoot.length(), absRoot) == 0;
+}
+
+bool HttpRouter::isFileExecutable(const std::string& path) {
+	return access(path.c_str(), X_OK) == 0;
 }

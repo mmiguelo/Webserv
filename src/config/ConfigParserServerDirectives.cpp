@@ -75,7 +75,7 @@ void ConfigParser::parseClientMaxBodySize(ServerConfig &serverBlock)
 	size_t multiplier = 1;
 	if (!sizeStr.empty() && std::isalpha(sizeStr[sizeStr.size() - 1]))
 	{
-		char unit = sizeStr[sizeStr.size() - 1];
+		char unit = std::toupper(sizeStr[sizeStr.size() - 1]);
 		sizeStr.erase(sizeStr.size() - 1);
 		switch (unit)
 		{
@@ -94,11 +94,46 @@ void ConfigParser::parseClientMaxBodySize(ServerConfig &serverBlock)
 	}
 	if (sizeStr.empty())
 		throw parseError("Size value is missing");
+	if (!sizeStr.empty() && sizeStr[0] == '-')
+		throw parseError("Negative size is not allowed: " + sizeStr);
 	size_t sizeValue = std::atoi(sizeStr.c_str());
 	if (sizeValue <= 0)
 		throw parseError("Invalid size value: " + sizeStr);
-	serverBlock.setClientMaxBodySize(sizeValue * multiplier); // atribuimos o valor ao serverBlock
 	expect(SEMICOLON);
+	serverBlock.setClientMaxBodySize(sizeValue * multiplier); // atribuimos o valor ao serverBlock
+}
+
+void ConfigParser::parseLargeHeaderBuffers(ServerConfig &serverBlock) {
+	std::string sizeStr = expectWord();
+	size_t multiplier = 1;
+	if (!sizeStr.empty() && std::isalpha(sizeStr[sizeStr.size() - 1]))
+	{
+		char unit = std::toupper(sizeStr[sizeStr.size() - 1]);
+		sizeStr.erase(sizeStr.size() - 1);
+		switch (unit)
+		{
+		case 'K':
+			multiplier *= 1024;
+			break;
+		case 'M':
+			multiplier *= 1024 * 1024;
+			break;
+		case 'G':
+			multiplier *= 1024 * 1024 * 1024;
+			break;
+		default:
+			throw parseError("Invalid size unit: " + std::string(1, unit));
+		}
+	}
+	if (sizeStr.empty())
+		throw parseError("Size value is missing");
+	if (!sizeStr.empty() && sizeStr[0] == '-')
+		throw parseError("Negative size is not allowed: " + sizeStr);
+	size_t sizeValue = std::atoi(sizeStr.c_str());
+	if (sizeValue <= 0)
+		throw parseError("Invalid size value: " + sizeStr);
+	expect(SEMICOLON);
+	serverBlock.setLargeHeaderBufferSize(sizeValue * multiplier);
 }
 
 void ConfigParser::parseErrorPage(ServerConfig& serverBlock) {

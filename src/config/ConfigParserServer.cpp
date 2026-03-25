@@ -22,7 +22,7 @@ ServerConfig ConfigParser::parseServerBlock() {
 		else if (matchWord("client_max_body_size"))
 			parseClientMaxBodySize(serverBlock);
 		else if (matchWord("large_client_header_buffers"))
-			; //create parse large client uri size; 
+			parseLargeHeaderBuffers(serverBlock);
 		else if (matchWord("error_page"))
 			parseErrorPage(serverBlock);
 		else if (matchWord("location"))

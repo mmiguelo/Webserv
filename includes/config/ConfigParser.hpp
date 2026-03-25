@@ -22,6 +22,7 @@ class ConfigParser {
 		void parseClientMaxBodySize(ServerConfig &serverBlock);
 		void parseErrorPage(ServerConfig &serverBlock);
 		void parseLocation(ServerConfig &serverBlock);
+		void parseLargeHeaderBuffers(ServerConfig &serverBlock);
 
 		// Location Directives
 		void parseLocationRoot(LocationConfig &location);
