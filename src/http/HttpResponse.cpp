@@ -461,7 +461,7 @@ std::string HttpResponse::handleUpload(const HttpRequest& request, const std::st
     return serialize(request.getMethod());
 }
 
-std::string HttpResponse::handleCgi(const HttpRequest& request, ServerConfig &config, HttpRouteMatch& match) {
+std::string HttpResponse::handleCgi(const HttpRequest& request, ServerConfig &config, HttpRouteMatch& match, EpollClient *client) {
     Cgi cgi;
 
     std::ostringstream oss;
@@ -499,8 +499,10 @@ std::string HttpResponse::handleCgi(const HttpRequest& request, ServerConfig &co
         cgi.freeEnv(envp);
         return buildError(500, request, config);
     }
+    client->startCgi(pid, stdin_pipe[0], stdout_pipe[1], _cgiBody);
     if (pid == 0)
     {
+        std::cout << "===== VOU ENTRAR NO CHILD PROCESS ==== " << std::endl;
         if (dup2(stdin_pipe[0], STDIN_FILENO) == -1) {
             cgi.freeEnv(envp);
             exit(1);
@@ -517,9 +519,10 @@ std::string HttpResponse::handleCgi(const HttpRequest& request, ServerConfig &co
         std::cout << "DEPOIS EXECVE" << std::endl;
         exit(1);
     }
+    std::cout << "===== VOU ENTRAR NO PARENT PROCESS ==== " << std::endl;
     cgi.freeEnv(envp);
-    close(stdin_pipe[0]);
-    close(stdout_pipe[1]);
+    //close(stdin_pipe[0]);
+    //close(stdout_pipe[1]);
 
     const std::string& body = request.getBody();
     if (!body.empty())
@@ -538,8 +541,8 @@ std::string HttpResponse::handleCgi(const HttpRequest& request, ServerConfig &co
 
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
         return buildError(500, request, config);
-    std::cout << "ENTREI PAI" << std::endl;
-    return parseCgiOutput(cgiOutput, request, config);
+    _cgiBody = parseCgiOutput(cgiOutput, request, config);
+    return _cgiBody;
 }
 
 std::string HttpResponse::parseCgiOutput(const std::string& output, const HttpRequest& request, ServerConfig& config) {

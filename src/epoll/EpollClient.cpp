@@ -211,8 +211,10 @@ void EpollClient::_buildRoutedResponse(const HttpRequest &request, HttpResponse 
         responseStr = response.buildError(match.errorCode, request, *_config);
         _closeAfterSend = true;
     }
-    else if (match.executeCGI)
-        responseStr = response.handleCgi(request, *_config, match);
+    else if (match.executeCGI) {
+        std::cout << "===== VOU DAR HANDLE AO CGI ==== " << std::endl;
+        responseStr = response.handleCgi(request, *_config, match, this);
+    }
     else
        _buildFromFile(request, response, match, responseStr);
 }
@@ -322,5 +324,6 @@ void EpollClient::startCgi(pid_t pid, int stdinFd, int stdoutFd, const std::stri
     _cgi_start_time = time(NULL);
     _cgi_finished = false;
 
+    std::cout << "===== VOU REGISTAR O CGI ==== " << std::endl;
     _server->registerCgi(_fd, _cgi_stdin_fd, _cgi_stdout_fd);
 }

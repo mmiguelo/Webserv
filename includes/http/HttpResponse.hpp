@@ -3,12 +3,15 @@
 #include "HttpRequest.hpp"
 #include "ServerConfig.hpp"
 #include "HttpRouter.hpp"
+#include "EpollClient.hpp"
 #include <string>
 #include <map>
 #include <iostream>
 #include <sstream>
 #include <ctime>
 #include <fstream>
+
+class EpollClient;
 
 class HttpResponse {
     private:
@@ -17,6 +20,7 @@ class HttpResponse {
         std::string                         _body;
         std::string                         _contentType;
         std::string                         _version;
+        std::string                         _cgiBody;
 
         std::string                         _location;  //TESTE
         std::string                         _allow;     //TESTE
@@ -45,7 +49,7 @@ class HttpResponse {
         std::string buildFromDirectory(const HttpRequest& request, const std::string& dirPath, bool autoindex, ServerConfig &config);
         std::string handleDelete(const HttpRequest& request, const std::string& path, int checkResult, ServerConfig &config);
         std::string handleUpload(const HttpRequest& request, const std::string& uploadDir, ServerConfig &server);
-        std::string handleCgi(const HttpRequest& request, ServerConfig &config, HttpRouteMatch& match);
+        std::string handleCgi(const HttpRequest& request, ServerConfig &config, HttpRouteMatch& match, EpollClient *client);
         std::string parseCgiOutput(const std::string& output, const HttpRequest& request, ServerConfig& config);
         std::string buildAutoIndex(const HttpRequest& request, const std::string& dirPath, ServerConfig &config);
         std::string serialize(HttpMethod method) const;

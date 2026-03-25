@@ -15,8 +15,9 @@
 #include <sys/types.h>
 #include <signal.h>
 class EpollServer;
+class HttpResponse;
 
-#define MAX_TIMEOUT 15
+#define MAX_TIMEOUT 1
 
 class EpollClient
 {

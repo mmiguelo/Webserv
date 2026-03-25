@@ -201,6 +201,7 @@ void EpollServer::run()
                 int clientFd = _cgi_fds[fd];
                 if (_clients.count(clientFd))
                 {
+                    std::cout << "===== ENTREI NO RUN DO CGI EPOLLSERVER ==== " << std::endl;
                     EpollClient *client = _clients[clientFd];
                     if (ev & (EPOLLIN | EPOLLHUP))
                         _handleCgiRead(fd, client);
@@ -243,6 +244,9 @@ void EpollServer::registerCgi(int clientFd, int cgiStdinFd, int cgiStdoutFd) {
 
     _cgi_fds[cgiStdinFd] = clientFd;
     _cgi_fds[cgiStdoutFd] = clientFd;
+
+    std::cout << "===== CGI FDS: ==== " << _cgi_fds[cgiStdinFd] << " \\ " << _cgi_fds[cgiStdoutFd] << std::endl;
+
 
 }
 
