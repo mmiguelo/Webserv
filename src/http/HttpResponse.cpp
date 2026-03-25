@@ -348,7 +348,7 @@ std::string HttpResponse::handleUpload(const HttpRequest& request, const std::st
         boundary = trimWhitespace(boundary);
         if (!boundary.empty() && boundary[0] == '"' && boundary[boundary.size() - 1] == '"')
             boundary = boundary.substr(1, boundary.size() - 2);
-
+        
         std::string marker = "--" + boundary;
         const std::string& body = request.getBody();
         size_t pos = body.find(marker);
@@ -479,9 +479,6 @@ std::string HttpResponse::handleCgi(const HttpRequest& request, ServerConfig &co
     cgi.set("SERVER_SOFTWARE", "webserv/1.0");
     cgi.set("GATEWAY_INTERFACE", "CGI/1.1");
 
-    std::cout << "SCRIPT_FILENAME: " << match.path << std::endl;
-    std::cout << "PATH_INFO: " << request.getPath() << std::endl;
-
     const std::map<std::string, std::string> &headers = request.getAllHeaders();
 
     std::map<std::string, std::string>::const_iterator it;
@@ -515,11 +512,11 @@ std::string HttpResponse::handleCgi(const HttpRequest& request, ServerConfig &co
         close(stdin_pipe[1]);
         close(stdout_pipe[0]);
         char* argv[] = {(char*)match.cgiInterpreter.c_str(), (char*)match.path.c_str(), NULL};
+        std::cout << "ANTES EXECVE" << std::endl;
         execve(match.cgiInterpreter.c_str(), argv, envp);
-        //cgi.freeEnv(envp);
+        std::cout << "DEPOIS EXECVE" << std::endl;
         exit(1);
     }
-    //parent
     cgi.freeEnv(envp);
     close(stdin_pipe[0]);
     close(stdout_pipe[1]);
@@ -541,6 +538,7 @@ std::string HttpResponse::handleCgi(const HttpRequest& request, ServerConfig &co
 
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
         return buildError(500, request, config);
+    std::cout << "ENTREI PAI" << std::endl;
     return parseCgiOutput(cgiOutput, request, config);
 }
 

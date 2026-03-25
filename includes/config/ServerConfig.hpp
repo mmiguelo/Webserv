@@ -16,12 +16,13 @@ class ServerConfig {
 		};
 	private:
 		std::vector<ListenDirective> _listen;
-		size_t _client_max_body_size;				//opcional example: client_max_body_size 5M; -> 5 * 1024 * 1024
 		std::string _root;							//obrigatorio
+		size_t _client_max_body_size;				//opcional example: client_max_body_size 5M; -> 5 * 1024 * 1024
 		std::vector<std::string> _server_name;		//opcional
 		std::vector<std::string> _methods;			//opcional
 		std::map<int, std::string> _error_page;		//opcional
 		std::vector<LocationConfig> _locations;		//opcional
+		size_t _largeHeaderBuffer_size;				//opcional
 	
 	public:
 		ServerConfig();
@@ -37,6 +38,7 @@ class ServerConfig {
 		const std::map<int, std::string>& getAllErrorPages() const;
 		const std::vector<LocationConfig>& getLocations() const;
 		std::string getErrorPage(const int key);
+		size_t getLargeHeaderBufferSize() const;
 	
 		// Setters (set by ConfigParser)
 		void setClientMaxBodySize(size_t size);

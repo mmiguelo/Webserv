@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <iostream>
 
-ServerConfig::ServerConfig() : _client_max_body_size(1024 * 1024) {} // 1MB
+ServerConfig::ServerConfig() : _client_max_body_size(1024 * 1024), _largeHeaderBuffer_size(4096) {} // 1MB
 
 static bool compareLocationLength(const LocationConfig &a, const LocationConfig &b)
 {
@@ -65,4 +65,8 @@ void ServerConfig::addLocation(const LocationConfig& location) {
 
 std::string ServerConfig::getErrorPage(const int key) {
 	return _error_page[key];
+}
+
+size_t ServerConfig::getLargeHeaderBufferSize() const {
+	return _largeHeaderBuffer_size;
 }
