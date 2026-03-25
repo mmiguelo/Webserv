@@ -27,6 +27,14 @@ HttpRouteMatch HttpRouter::route(const HttpRequest& request, const ServerConfig&
 		return match;
 	}
 
+	if (request.getMethod() == METHOD_POST
+    	&& bestLocation->has_client_max_body_size
+    	&& request.getBody().size() > bestLocation->client_max_body_size) 
+	{
+    	match.errorCode = 413;
+    	return match;
+	}
+
 	//PATH
 	std::string effectiveRoot = bestLocation->upload_dir.empty() ? bestLocation->root : bestLocation->upload_dir;
 	std::string path = resolveFilesystemPath(*bestLocation, request);
