@@ -17,7 +17,7 @@
 class EpollServer;
 class HttpResponse;
 
-#define MAX_TIMEOUT 1
+#define MAX_TIMEOUT 60
 
 class EpollClient
 {
@@ -69,6 +69,8 @@ public:
     int getCgiStdoutFd() const;
     std::string getCgiInputBuffer() const;
     std::string getCgiOutputBuffer() const;
+    const char* getCgiInputData() const;
+    size_t getCgiInputSize() const;
     size_t getCgiInputOffset() const;
     time_t getCgiStartTime() const;
 

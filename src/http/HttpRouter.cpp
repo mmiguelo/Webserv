@@ -47,20 +47,12 @@ HttpRouteMatch HttpRouter::route(const HttpRequest& request, const ServerConfig&
 	//CGI
 	std::string cgiInterpreter;
 	if (isCGI(*bestLocation, path, cgiInterpreter)) {
-		struct stat st;
-		if (stat(path.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) {
-			match.errorCode = 404;
-			return match;
-		}
-		if (!isFileExecutable(path)) {
-			match.errorCode = 403;
-			return match;
-		}
 		match.executeCGI = true;
 		match.cgiInterpreter = cgiInterpreter;
 	}
 	match.autoindex = bestLocation->autoindex;
 	match.upload_dir = bestLocation->upload_dir;
+	match.index = bestLocation->index;
 	return match;
 }
 

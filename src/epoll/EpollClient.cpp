@@ -16,6 +16,8 @@ int EpollClient::getFd() const
 
 bool EpollClient::isTimedOut(time_t now) const
 {
+    if (_cgi_pid != -1)
+        return false;
     return (now - _lastActivity) > MAX_TIMEOUT;
 }
 
@@ -238,7 +240,7 @@ void EpollClient::_buildFromFile(const HttpRequest &request, HttpResponse &respo
         if (request.getMethod() == METHOD_DELETE)
             responseStr = response.handleDelete(request, match.path, result, *_config);
         else if (result == 300)
-            responseStr = response.buildFromDirectory(request, match.path, match.autoindex, *_config);
+            responseStr = response.buildFromDirectory(request, match.path, match.autoindex, match.index, *_config);
         else
             responseStr = response.buildFromFile(request, match.path, result, *_config);
         if (response.getStatusCode() >= 400)
@@ -274,6 +276,12 @@ std::string EpollClient::getCgiInputBuffer() const {
 }
 std::string EpollClient::getCgiOutputBuffer() const {
     return _cgi_output_buffer;
+}
+const char* EpollClient::getCgiInputData() const {
+    return _cgi_input_buffer.data();
+}
+size_t EpollClient::getCgiInputSize() const {
+    return _cgi_input_buffer.size();
 }
 size_t EpollClient::getCgiInputOffset() const {
     return _cgi_input_offset;
@@ -344,6 +352,7 @@ void EpollClient::finalizeCgi() {
     _cgi_pid = -1;
     _cgi_stdin_fd = -1;
     _cgi_stdout_fd = -1;
+    _lastActivity = time(NULL);
 
     // switch client socket to write
     struct epoll_event ev;

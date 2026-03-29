@@ -225,7 +225,7 @@ std::string HttpResponse::buildAutoIndex(const HttpRequest& request, const std::
     return serialize(request.getMethod());
 }
 
-std::string HttpResponse::buildFromDirectory(const HttpRequest& request, const std::string& dirPath, bool autoindex, ServerConfig &config)
+std::string HttpResponse::buildFromDirectory(const HttpRequest& request, const std::string& dirPath, bool autoindex, const std::vector<std::string>& indexFiles, ServerConfig &config)
 {
     _version = request.getVersion();
     if (_version.empty())
@@ -243,26 +243,29 @@ std::string HttpResponse::buildFromDirectory(const HttpRequest& request, const s
         return serialize(request.getMethod());
     }
 
-    // Try to serve index.html inside dir
-    std::string indexPath = dirPath;
-    if (indexPath[indexPath.size() - 1] != '/')
-        indexPath += '/';
-    indexPath += "index.html";
+    // Try configured index files
+    std::string base = dirPath;
+    if (base[base.size() - 1] != '/')
+        base += '/';
 
-    struct stat indexSt;
+    const std::vector<std::string>& candidates = indexFiles.empty()
+        ? std::vector<std::string>(1, "index.html")
+        : indexFiles;
 
-    if (stat(indexPath.c_str(), &indexSt) == 0)
-    {
-        int indexResult = checkFile(indexSt);
-        if (indexResult == 200)
-            return buildFromFile(request, indexPath, indexResult, config);
+    for (size_t i = 0; i < candidates.size(); i++) {
+        std::string indexPath = base + candidates[i];
+        struct stat indexSt;
+        if (stat(indexPath.c_str(), &indexSt) == 0) {
+            int indexResult = checkFile(indexSt);
+            if (indexResult == 200)
+                return buildFromFile(request, indexPath, indexResult, config);
+        }
     }
-    
+
     if (autoindex)
         return buildAutoIndex(request, dirPath, config);
 
-    // No index.html and no autoindex support here yet
-    return buildError(403, request, config);
+    return buildError(404, request, config);
 }
 
 std::string HttpResponse::buildFromFile(const HttpRequest& request, const std::string& filePath, int checkResult, ServerConfig &config) {
@@ -462,9 +465,6 @@ std::string HttpResponse::handleUpload(const HttpRequest& request, const std::st
 }
 
 std::string HttpResponse::handleCgi(const HttpRequest& request, ServerConfig &config, HttpRouteMatch& match, EpollClient *client) {
-    struct stat st;
-    if (stat(match.path.c_str(), &st) != 0 || !S_ISREG(st.st_mode))
-        return buildError(404, request, config);
 
     Cgi cgi;
 

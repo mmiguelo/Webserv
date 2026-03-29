@@ -2,6 +2,7 @@
 #define HTTPROUTEMATCH_HPP
 
 #include <string>
+#include <vector>
 #include "LocationConfig.hpp"
 
 struct HttpRouteMatch {
@@ -11,8 +12,9 @@ struct HttpRouteMatch {
 	std::string cgiInterpreter; //se executeCGI for true, aqui fica o caminho do interpretador CGI a usar
 	int errorCode; //0 se não houver erro, ou o código de erro HTTP a retornar
 	std::string redirectTarget; //se for um redirect, aqui fica a URL de destino
-	bool autoindex; 
+	bool autoindex;
 	std::string upload_dir;
+	std::vector<std::string> index;
 
 	HttpRouteMatch() : location(NULL), executeCGI(false), errorCode(0), autoindex(false) {};
 };

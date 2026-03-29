@@ -264,7 +264,9 @@ void EpollServer::_closeCgiFd(int fd) {
 }
 
 void EpollServer::_handleCgiWrite(int stdinFd, EpollClient *client) {
-    size_t bytes_remaining = client->getCgiInputBuffer().size() - client->getCgiInputOffset();
+    size_t inputSize = client->getCgiInputSize();
+    size_t offset = client->getCgiInputOffset();
+    size_t bytes_remaining = inputSize - offset;
     if (bytes_remaining == 0)
     {
         _closeCgiFd(stdinFd);
@@ -272,11 +274,11 @@ void EpollServer::_handleCgiWrite(int stdinFd, EpollClient *client) {
         client->setCgiDone(true);
         return;
     }
-    ssize_t write_bytes = write(stdinFd, client->getCgiInputBuffer().data() + client->getCgiInputOffset(), bytes_remaining);
+    ssize_t write_bytes = write(stdinFd, client->getCgiInputData() + offset, bytes_remaining);
     if (write_bytes < 0)
         return;
-    client->setCgiInputOffset(client->getCgiInputOffset() + write_bytes);
-    if (client->getCgiInputOffset() >= client->getCgiInputBuffer().size())
+    client->setCgiInputOffset(offset + write_bytes);
+    if (offset + static_cast<size_t>(write_bytes) >= inputSize)
     {
         _closeCgiFd(stdinFd);
         client->setCgiStdinFd(-1);
