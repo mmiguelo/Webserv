@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <iostream>
 
-ServerConfig::ServerConfig() : _client_max_body_size(1024 * 1024) {} // 1MB
+ServerConfig::ServerConfig() : _client_max_body_size(1024 * 1024), _largeHeaderBuffer_size(4096) {} // 1MB
 
 static bool compareLocationLength(const LocationConfig &a, const LocationConfig &b)
 {
@@ -23,6 +23,9 @@ size_t ServerConfig::getClientMaxBodySize() const {
 }
 const std::string& ServerConfig::getRoot() const {
 	return _root;
+}
+int ServerConfig::getPort() const {
+	return _listen[0].port;
 }
 const std::vector<std::string>& ServerConfig::getServerName() const {
 	return _server_name;

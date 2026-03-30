@@ -1,6 +1,7 @@
 #include "HttpRouter.hpp"
 #include <limits.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include "utils.hpp"
 
 HttpRouteMatch HttpRouter::route(const HttpRequest& request, const ServerConfig& serverConfig) {
@@ -27,6 +28,14 @@ HttpRouteMatch HttpRouter::route(const HttpRequest& request, const ServerConfig&
 		return match;
 	}
 
+	if (request.getMethod() == METHOD_POST
+    	&& bestLocation->has_client_max_body_size
+    	&& request.getBody().size() > bestLocation->client_max_body_size) 
+	{
+    	match.errorCode = 413;
+    	return match;
+	}
+
 	//PATH
 	std::string path = resolveFilesystemPath(*bestLocation, request);
 	if(!validatePath(path, bestLocation->root)) {
@@ -38,15 +47,12 @@ HttpRouteMatch HttpRouter::route(const HttpRequest& request, const ServerConfig&
 	//CGI
 	std::string cgiInterpreter;
 	if (isCGI(*bestLocation, path, cgiInterpreter)) {
-		if (!isFileExecutable(path)) {
-			match.errorCode = 403;
-			return match;
-		}
 		match.executeCGI = true;
 		match.cgiInterpreter = cgiInterpreter;
 	}
 	match.autoindex = bestLocation->autoindex;
 	match.upload_dir = bestLocation->upload_dir;
+	match.index = bestLocation->index;
 	return match;
 }
 

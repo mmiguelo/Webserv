@@ -16,6 +16,8 @@ int EpollClient::getFd() const
 
 bool EpollClient::isTimedOut(time_t now) const
 {
+    if (_cgi_pid != -1)
+        return false;
     return (now - _lastActivity) > MAX_TIMEOUT;
 }
 
@@ -201,49 +203,48 @@ void EpollClient::_buildRoutedResponse(const HttpRequest &request, HttpResponse 
         responseStr = response.serialize(request.getMethod());
         _closeAfterSend = true;
     }
+    else if (match.errorCode == 414)
+    {
+        responseStr = response.buildError(414, request, *_config);
+        _closeAfterSend = true;
+    }
     else if (match.errorCode != 0)
     {
         responseStr = response.buildError(match.errorCode, request, *_config);
         _closeAfterSend = true;
     }
-    else if (match.executeCGI)
-    {
-        responseStr = response.buildError(501, request, *_config);
+    else if (match.executeCGI) {
+        std::cout << "===== VOU DAR HANDLE AO CGI ==== " << std::endl;
+        responseStr = response.handleCgi(request, *_config, match, this);
     }
     else
-    {
-        if (request.getMethod() == METHOD_POST && match.location != NULL &&
-            match.location->has_client_max_body_size &&
-            request.getBody().size() > match.location->client_max_body_size)
-        {
-            responseStr = response.buildError(413, request, *_config);
-            _closeAfterSend = true;
-            return;
-        }
+       _buildFromFile(request, response, match, responseStr);
+}
 
-        if (request.getMethod() == METHOD_POST && !match.upload_dir.empty())
-        {
-            responseStr = response.handleUpload(request, match.upload_dir, *_config);
-            if (response.getStatusCode() >= 400)
-                _closeAfterSend = true;
-            return;
-        }
-        struct stat st;
-        int result;
-        if (stat(match.path.c_str(), &st) != 0)
-            responseStr = response.buildError(404, request, *_config);
-        else {
-            result = response.checkFile(st);
-            
-            if (request.getMethod() == METHOD_DELETE)
-                responseStr = response.handleDelete(request, match.path, result, *_config);
-            else if (result == 300)
-                responseStr = response.buildFromDirectory(request, match.path, match.autoindex, *_config);
-            else
-                responseStr = response.buildFromFile(request, match.path, result, *_config);
-            if (response.getStatusCode() >= 400)
-                _closeAfterSend = true;
-        }
+void EpollClient::_buildFromFile(const HttpRequest &request, HttpResponse &response, const HttpRouteMatch &match, std::string &responseStr)
+{
+    if (request.getMethod() == METHOD_POST && !match.upload_dir.empty())
+    {
+        responseStr = response.handleUpload(request, match.upload_dir, *_config);
+        if (response.getStatusCode() >= 400)
+            _closeAfterSend = true;
+        return;
+    }
+    struct stat st;
+    int result;
+    if (stat(match.path.c_str(), &st) != 0)
+        responseStr = response.buildError(404, request, *_config);
+    else {
+        result = response.checkFile(st);
+        
+        if (request.getMethod() == METHOD_DELETE)
+            responseStr = response.handleDelete(request, match.path, result, *_config);
+        else if (result == 300)
+            responseStr = response.buildFromDirectory(request, match.path, match.autoindex, match.index, *_config);
+        else
+            responseStr = response.buildFromFile(request, match.path, result, *_config);
+        if (response.getStatusCode() >= 400)
+            _closeAfterSend = true;
     }
 }
 
@@ -275,6 +276,12 @@ std::string EpollClient::getCgiInputBuffer() const {
 }
 std::string EpollClient::getCgiOutputBuffer() const {
     return _cgi_output_buffer;
+}
+const char* EpollClient::getCgiInputData() const {
+    return _cgi_input_buffer.data();
+}
+size_t EpollClient::getCgiInputSize() const {
+    return _cgi_input_buffer.size();
 }
 size_t EpollClient::getCgiInputOffset() const {
     return _cgi_input_offset;
@@ -325,5 +332,31 @@ void EpollClient::startCgi(pid_t pid, int stdinFd, int stdoutFd, const std::stri
     _cgi_start_time = time(NULL);
     _cgi_finished = false;
 
+    std::cout << "===== VOU REGISTAR O CGI ==== " << std::endl;
     _server->registerCgi(_fd, _cgi_stdin_fd, _cgi_stdout_fd);
+}
+
+void EpollClient::finalizeCgi() {
+    // Build HTTP response from CGI raw output
+    HttpResponse resp;
+    // parser is a member: use it to get the original request
+    HttpRequest request = _parser.getRequest();
+    std::string httpResp = resp.parseCgiOutput(_cgi_output_buffer, request, *_config);
+    setSendBuffer(httpResp);
+
+    // cleanup CGI state
+    _cgi_output_buffer.clear();
+    _cgi_input_buffer.clear();
+    _cgi_input_offset = 0;
+    _cgi_finished = true;
+    _cgi_pid = -1;
+    _cgi_stdin_fd = -1;
+    _cgi_stdout_fd = -1;
+    _lastActivity = time(NULL);
+
+    // switch client socket to write
+    struct epoll_event ev;
+    ev.data.fd = _fd;
+    ev.events = EPOLLOUT | EPOLLERR | EPOLLHUP;
+    epoll_ctl(_epollFd, EPOLL_CTL_MOD, _fd, &ev);
 }

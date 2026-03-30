@@ -15,8 +15,9 @@
 #include <sys/types.h>
 #include <signal.h>
 class EpollServer;
+class HttpResponse;
 
-#define MAX_TIMEOUT 15
+#define MAX_TIMEOUT 60
 
 class EpollClient
 {
@@ -48,6 +49,7 @@ private:
     bool _keepAlive(const HttpRequest &request) const;
     bool _buildErrorResponse(const HttpRequest &request, HttpResponse &response, std::string &responseStr);
     void _buildRoutedResponse(const HttpRequest &request, HttpResponse &response, std::string &responseStr);
+    void _buildFromFile(const HttpRequest &request, HttpResponse &response, const HttpRouteMatch &match, std::string &responseStr);
     void _finalizeResponse(const HttpRequest &request, HttpResponse &response, std::string &responseStr, bool keepAlive);
     void _switchToWrite();
     void _switchToRead();
@@ -67,6 +69,8 @@ public:
     int getCgiStdoutFd() const;
     std::string getCgiInputBuffer() const;
     std::string getCgiOutputBuffer() const;
+    const char* getCgiInputData() const;
+    size_t getCgiInputSize() const;
     size_t getCgiInputOffset() const;
     time_t getCgiStartTime() const;
 
@@ -82,4 +86,5 @@ public:
     void setCgiPid(int pid);
     void appendCgiStdoutBuffer(const std::string &other, size_t size);
     void setCgiDone(bool flag);
+    void finalizeCgi();
 };

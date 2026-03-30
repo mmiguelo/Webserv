@@ -201,11 +201,19 @@ void EpollServer::run()
                 int clientFd = _cgi_fds[fd];
                 if (_clients.count(clientFd))
                 {
+                    std::cout << "===== ENTREI NO RUN DO CGI EPOLLSERVER ==== " << std::endl;
                     EpollClient *client = _clients[clientFd];
                     if (ev & (EPOLLIN | EPOLLHUP))
+                    {
+                        std::cout << "Vou ler o CGI" << std::endl;
                         _handleCgiRead(fd, client);
+                    }
                     else if (ev & EPOLLOUT)
+                    {
+                        std::cout << "Vou escrever o CGI" << std::endl;
                         _handleCgiWrite(fd, client);
+
+                    }
                 }
             }
             else if (_clients.count(fd))
@@ -243,6 +251,9 @@ void EpollServer::registerCgi(int clientFd, int cgiStdinFd, int cgiStdoutFd) {
 
     _cgi_fds[cgiStdinFd] = clientFd;
     _cgi_fds[cgiStdoutFd] = clientFd;
+    
+    std::cout << "registerCgi: client=" << clientFd << " stdinFd=" << cgiStdinFd
+        << " stdoutFd=" << cgiStdoutFd << std::endl;
 
 }
 
@@ -253,7 +264,9 @@ void EpollServer::_closeCgiFd(int fd) {
 }
 
 void EpollServer::_handleCgiWrite(int stdinFd, EpollClient *client) {
-    size_t bytes_remaining = client->getCgiInputBuffer().size() - client->getCgiInputOffset();
+    size_t inputSize = client->getCgiInputSize();
+    size_t offset = client->getCgiInputOffset();
+    size_t bytes_remaining = inputSize - offset;
     if (bytes_remaining == 0)
     {
         _closeCgiFd(stdinFd);
@@ -261,11 +274,11 @@ void EpollServer::_handleCgiWrite(int stdinFd, EpollClient *client) {
         client->setCgiDone(true);
         return;
     }
-    ssize_t write_bytes = write(stdinFd, client->getCgiInputBuffer().data() + client->getCgiInputOffset(), bytes_remaining);
+    ssize_t write_bytes = write(stdinFd, client->getCgiInputData() + offset, bytes_remaining);
     if (write_bytes < 0)
         return;
-    client->setCgiInputOffset(client->getCgiInputOffset() + write_bytes);
-    if (client->getCgiInputOffset() >= client->getCgiInputBuffer().size())
+    client->setCgiInputOffset(offset + write_bytes);
+    if (offset + static_cast<size_t>(write_bytes) >= inputSize)
     {
         _closeCgiFd(stdinFd);
         client->setCgiStdinFd(-1);
@@ -286,12 +299,7 @@ void EpollServer::_handleCgiRead(int stdoutFd, EpollClient* client) {
         client->setCgiStdoutFd(-1);
         waitpid(client->getCgiPid(), NULL, WNOHANG);
         client->setCgiPid(-1);
-        //std::string httpResponseCgi = CGIResponse::parseCgiOutput(client->getCgiOutputBuffer());
-        //client->setSendBuffer(httpResponseCgi);
-        struct epoll_event ev;
-        ev.data.fd = client->getFd();
-        ev.events = EPOLLOUT | EPOLLERR | EPOLLHUP;
-        epoll_ctl(_epollFd, EPOLL_CTL_MOD, client->getFd(), &ev);
+        client->finalizeCgi();
     }
     else {
         client->appendCgiStdoutBuffer(buffer, read_bytes);

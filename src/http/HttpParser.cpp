@@ -103,6 +103,13 @@ bool HttpParser::_parseRequestLine()
     std::string requestLine = _buffer.substr(0, pos);
     _buffer.erase(0, pos + 2); //clean \r\n
 
+    if (requestLine.size() > _serverConfig->getLargeHeaderBufferSize())
+    {
+        _request.setErrorCode(STATUS_URI_TOO_LONG);
+        _state = PARSE_ERROR;
+        return false;
+    }
+
     std::vector<std::string> parts;
     std::stringstream ss(requestLine);
     std::string token;
@@ -124,12 +131,24 @@ bool HttpParser::_parseRequestLine()
     std::string version = parts[2];
     if (method == METHOD_UNKNOWN)
     {
-        _request.setErrorCode(STATUS_METHOD_NOT_ALLOWED);
+        _request.setErrorCode(STATUS_NOT_IMPLEMENTED);
+        _state = PARSE_ERROR;
+        return false;
+    }
+    if (uri.size() > 2048) // standard safe limit
+    {
+        _request.setErrorCode(STATUS_URI_TOO_LONG);
+        _state = PARSE_ERROR;
+        return false;
+    }
+    if (uri.find("..") != std::string::npos)
+    {
+        _request.setErrorCode(STATUS_BAD_REQUEST);
         _state = PARSE_ERROR;
         return false;
     }
     _request.setMethod(method);
-
+    
     // Split URI on '?' into path and query
     std::string::size_type qpos = uri.find('?');
     if (qpos == std::string::npos)
@@ -147,7 +166,6 @@ bool HttpParser::_parseRequestLine()
         return false;
     }
     _request.setVersion(version);
-
     _state = PARSE_HEADERS;
     return true;
 }

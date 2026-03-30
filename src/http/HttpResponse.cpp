@@ -1,6 +1,7 @@
 #include "HttpResponse.hpp"
 #include "HttpRequest.hpp"
 #include "HttpRouter.hpp"
+#include "cgi.hpp"
 #include <sys/types.h>
 #include <dirent.h>
 #include <sys/stat.h>
@@ -8,6 +9,14 @@
 #include <unistd.h>
 #include <algorithm>
 #include "utils.hpp"
+#include <sys/wait.h>
+
+static std::string normalize(const std::string& name) {
+    std::string result = name;
+    for (size_t i = 0; i < result.size(); i++)
+        result[i] = (result[i] == '-') ? '_' : std::toupper(result[i]);
+    return result;
+}
 
 //define the static member
 std::map<int, std::string> HttpResponse::_codeMsg;
@@ -216,7 +225,7 @@ std::string HttpResponse::buildAutoIndex(const HttpRequest& request, const std::
     return serialize(request.getMethod());
 }
 
-std::string HttpResponse::buildFromDirectory(const HttpRequest& request, const std::string& dirPath, bool autoindex, ServerConfig &config)
+std::string HttpResponse::buildFromDirectory(const HttpRequest& request, const std::string& dirPath, bool autoindex, const std::vector<std::string>& indexFiles, ServerConfig &config)
 {
     _version = request.getVersion();
     if (_version.empty())
@@ -234,26 +243,29 @@ std::string HttpResponse::buildFromDirectory(const HttpRequest& request, const s
         return serialize(request.getMethod());
     }
 
-    // Try to serve index.html inside dir
-    std::string indexPath = dirPath;
-    if (indexPath[indexPath.size() - 1] != '/')
-        indexPath += '/';
-    indexPath += "index.html";
+    // Try configured index files
+    std::string base = dirPath;
+    if (base[base.size() - 1] != '/')
+        base += '/';
 
-    struct stat indexSt;
+    const std::vector<std::string>& candidates = indexFiles.empty()
+        ? std::vector<std::string>(1, "index.html")
+        : indexFiles;
 
-    if (stat(indexPath.c_str(), &indexSt) == 0)
-    {
-        int indexResult = checkFile(indexSt);
-        if (indexResult == 200)
-            return buildFromFile(request, indexPath, indexResult, config);
+    for (size_t i = 0; i < candidates.size(); i++) {
+        std::string indexPath = base + candidates[i];
+        struct stat indexSt;
+        if (stat(indexPath.c_str(), &indexSt) == 0) {
+            int indexResult = checkFile(indexSt);
+            if (indexResult == 200)
+                return buildFromFile(request, indexPath, indexResult, config);
+        }
     }
-    
+
     if (autoindex)
         return buildAutoIndex(request, dirPath, config);
 
-    // No index.html and no autoindex support here yet
-    return buildError(403, request, config);
+    return buildError(404, request, config);
 }
 
 std::string HttpResponse::buildFromFile(const HttpRequest& request, const std::string& filePath, int checkResult, ServerConfig &config) {
@@ -339,7 +351,7 @@ std::string HttpResponse::handleUpload(const HttpRequest& request, const std::st
         boundary = trimWhitespace(boundary);
         if (!boundary.empty() && boundary[0] == '"' && boundary[boundary.size() - 1] == '"')
             boundary = boundary.substr(1, boundary.size() - 2);
-
+        
         std::string marker = "--" + boundary;
         const std::string& body = request.getBody();
         size_t pos = body.find(marker);
@@ -450,6 +462,93 @@ std::string HttpResponse::handleUpload(const HttpRequest& request, const std::st
     _contentType.clear();
     setLocation(location);
     return serialize(request.getMethod());
+}
+
+std::string HttpResponse::handleCgi(const HttpRequest& request, ServerConfig &config, HttpRouteMatch& match, EpollClient *client) {
+
+    Cgi cgi;
+
+    std::ostringstream oss;
+    oss << config.getPort(); // para ja retorna apenas _listen[0]
+    cgi.set("REQUEST_METHOD", methodToString(request.getMethod()));
+    cgi.set("QUERY_STRING", request.getQuery());
+    cgi.set("CONTENT_TYPE", request.getHeader("content-type"));
+    cgi.set("CONTENT_LENGTH", request.getHeader("content-length"));
+    cgi.set("SCRIPT_FILENAME", match.path); //file path from root to filename
+    cgi.set("PATH_INFO", request.getPath()); //URL path
+    const std::vector<std::string>& name = config.getServerName();
+    cgi.set("SERVER_NAME", name.empty() ? "" : name[0]);
+    cgi.set("SERVER_PORT", oss.str());
+    cgi.set("SERVER_PROTOCOL", request.getVersion());
+    cgi.set("SERVER_SOFTWARE", "webserv/1.0");
+    cgi.set("GATEWAY_INTERFACE", "CGI/1.1");
+
+    const std::map<std::string, std::string> &headers = request.getAllHeaders();
+
+    std::map<std::string, std::string>::const_iterator it;
+    for (it = headers.begin(); it != headers.end(); ++it)
+        cgi.set("HTTP_" + normalize(it->first), it->second);
+
+    char **envp = cgi.getEnv();
+
+    int stdin_pipe[2];
+    int stdout_pipe[2];
+    if (pipe(stdin_pipe) == -1 || pipe(stdout_pipe) == -1) {
+            cgi.freeEnv(envp);
+            return buildError(500, request, config);
+    }
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        cgi.freeEnv(envp);
+        return buildError(500, request, config);
+    }
+    if (pid == 0)
+    {
+        std::cout << "===== VOU ENTRAR NO CHILD PROCESS ==== " << std::endl;
+        if (dup2(stdin_pipe[0], STDIN_FILENO) == -1) {
+            cgi.freeEnv(envp);
+            exit(1);
+        }
+        if (dup2(stdout_pipe[1], STDOUT_FILENO) == -1) {
+            cgi.freeEnv(envp);
+            exit(1);
+        }
+        close(stdin_pipe[1]);
+        close(stdout_pipe[0]);
+        char* argv[] = {(char*)match.cgiInterpreter.c_str(), (char*)match.path.c_str(), NULL};
+        execve(match.cgiInterpreter.c_str(), argv, envp);
+        std::cout << "DEPOIS EXECVE" << std::endl;
+        exit(1);
+    }
+    std::cout << "===== VOU ENTRAR NO PARENT PROCESS ==== " << std::endl;
+    cgi.freeEnv(envp);
+    close(stdin_pipe[0]);
+    close(stdout_pipe[1]);
+
+    client->startCgi(pid, stdin_pipe[1], stdout_pipe[0], request.getBody());
+    return std::string();
+}
+
+std::string HttpResponse::parseCgiOutput(const std::string& output, const HttpRequest& request, ServerConfig& config) {
+    size_t headerEnd = output.find("\r\n\r\n");
+    size_t sep = 4;
+    if (headerEnd == std::string::npos) {
+        headerEnd = output.find("\n\n");
+        sep = 2;
+    }
+    if (headerEnd == std::string::npos)
+        return buildError(500, request, config);
+
+    std::string headerBlock = output.substr(0, headerEnd);
+    std::string body = output.substr(headerEnd + sep);
+
+    std::ostringstream oss;
+    oss << "HTTP/1.1" << " 200 OK\r\n";
+    oss << headerBlock << "\r\n";
+    oss << "\r\n";
+    oss << body;
+    return oss.str();
 }
 
 std::string HttpResponse::buildError(int statusCode, const HttpRequest& request, ServerConfig &config) {

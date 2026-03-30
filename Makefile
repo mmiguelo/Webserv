@@ -10,6 +10,7 @@ INCLUDES	= -I./includes
 INCLUDES	+= -I./includes/http
 INCLUDES	+= -I./includes/epoll
 INCLUDES	+= -I./includes/config
+INCLUDES	+= -I./includes/cgi
 
 #==============================================================================#
 #                                    PATHS                                     #
@@ -22,6 +23,7 @@ VPATH =		$(SRC_DIR)
 VPATH +=	$(SRC_DIR)/epoll
 VPATH +=	$(SRC_DIR)/http
 VPATH +=	$(SRC_DIR)/config
+VPATH +=	$(SRC_DIR)/cgi
 
 #==============================================================================#
 #                                   SOURCES                                    #
@@ -47,11 +49,13 @@ FILE_PARSE += Validator.cpp
 FILE_PARSE += Tokenizer.cpp
 FILE_PARSE += ServerConfig.cpp
 
+CGI = cgi.cpp
 
 SRC	=	$(GENERAL)
 SRC	+=	$(HTTP)
 SRC	+=	$(EPOLL)
 SRC +=	$(FILE_PARSE)
+SRC +=	$(CGI)
 
 # Parser-only sources (no epoll)
 SRC_PARSER = $(GENERAL)
