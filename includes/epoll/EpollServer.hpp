@@ -11,7 +11,7 @@
 #include <sys/wait.h>
 
 #define MAX_EVENTS 64
-#define CGI_TIMEOUT 60
+#define CGI_TIMEOUT 2
 
 class EpollServer
 {
