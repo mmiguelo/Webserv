@@ -6,6 +6,8 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <sstream>
+#include <cctype>
+#include <cstdlib>
 #include <unistd.h>
 #include <algorithm>
 #include "utils.hpp"
@@ -201,9 +203,6 @@ std::string HttpResponse::buildAutoIndex(const HttpRequest& request, const std::
         fileList << "<a href=\"" << href << "\">" << name << "</a>\n";
     }
 
-    for (size_t i = 0; i < entries.size(); i++)
-        std::cout << entries[i] << std::endl;
-
     std::string templateHtml;
     if (!_readFile("www/html/autoindex.html", templateHtml) || templateHtml.empty()) {
         templateHtml = "<!DOCTYPE html><html><body>"
@@ -265,7 +264,8 @@ std::string HttpResponse::buildFromDirectory(const HttpRequest& request, const s
     if (autoindex)
         return buildAutoIndex(request, dirPath, config);
 
-    return buildError(404, request, config);
+    // No index found: 404 if an explicit index was configured but missing, 403 if no index configured
+    return buildError(indexFiles.empty() ? 403 : 404, request, config);
 }
 
 std::string HttpResponse::buildFromFile(const HttpRequest& request, const std::string& filePath, int checkResult, ServerConfig &config) {
@@ -505,7 +505,6 @@ std::string HttpResponse::handleCgi(const HttpRequest& request, ServerConfig &co
     }
     if (pid == 0)
     {
-        std::cout << "===== VOU ENTRAR NO CHILD PROCESS ==== " << std::endl;
         if (dup2(stdin_pipe[0], STDIN_FILENO) == -1) {
             cgi.freeEnv(envp);
             exit(1);
@@ -518,10 +517,8 @@ std::string HttpResponse::handleCgi(const HttpRequest& request, ServerConfig &co
         close(stdout_pipe[0]);
         char* argv[] = {(char*)match.cgiInterpreter.c_str(), (char*)match.path.c_str(), NULL};
         execve(match.cgiInterpreter.c_str(), argv, envp);
-        std::cout << "DEPOIS EXECVE" << std::endl;
         exit(1);
     }
-    std::cout << "===== VOU ENTRAR NO PARENT PROCESS ==== " << std::endl;
     cgi.freeEnv(envp);
     close(stdin_pipe[0]);
     close(stdout_pipe[1]);
@@ -543,11 +540,47 @@ std::string HttpResponse::parseCgiOutput(const std::string& output, const HttpRe
     std::string headerBlock = output.substr(0, headerEnd);
     std::string body = output.substr(headerEnd + sep);
 
+    // Parse CGI headers: extract Status: and collect the rest
+    int statusCode = 200;
+    std::string statusMsg = "OK";
+    std::string filteredHeaders;
+    bool hasContentLength = false;
+    std::istringstream ss(headerBlock);
+    std::string line;
+    while (std::getline(ss, line)) {
+        if (!line.empty() && line[line.size() - 1] == '\r')
+            line.erase(line.size() - 1);
+        if (line.empty()) continue;
+        std::string lower = line;
+        for (size_t i = 0; i < lower.size(); i++)
+            lower[i] = static_cast<char>(std::tolower(lower[i]));
+        if (lower.compare(0, 7, "status:") == 0) {
+            std::string val = line.substr(7);
+            size_t start = val.find_first_not_of(" \t");
+            if (start != std::string::npos) {
+                statusCode = std::atoi(val.c_str() + start);
+                size_t sp = val.find(' ', start);
+                statusMsg = (sp != std::string::npos) ? val.substr(sp + 1) : getStatusMessage(statusCode);
+            }
+        } else {
+            if (lower.compare(0, 15, "content-length:") == 0)
+                hasContentLength = true;
+            if (!filteredHeaders.empty())
+                filteredHeaders += "\r\n";
+            filteredHeaders += line;
+        }
+    }
+
     std::ostringstream oss;
-    oss << "HTTP/1.1" << " 200 OK\r\n";
-    oss << headerBlock << "\r\n";
+    oss << "HTTP/1.1 " << statusCode << " " << statusMsg << "\r\n";
+    if (!filteredHeaders.empty())
+        oss << filteredHeaders << "\r\n";
+    if (!hasContentLength)
+        oss << "Content-Length: " << body.size() << "\r\n";
+    oss << "Connection: keep-alive\r\n";
     oss << "\r\n";
-    oss << body;
+    if (request.getMethod() != METHOD_HEAD)
+        oss << body;
     return oss.str();
 }
 

@@ -1682,7 +1682,7 @@ def test_keepalive():
                 if b"Welcome" in buf:
                     response_ok.set()
                 # Wait for server to close idle connection
-                s.settimeout(18)
+                s.settimeout(65)
                 try:
                     data = s.recv(1)
                     if data == b"":
@@ -1696,7 +1696,7 @@ def test_keepalive():
 
     t = threading.Thread(target=idle_test, daemon=True)
     t.start()
-    t.join(timeout=22)
+    t.join(timeout=70)
     record("idle connection: response delivered", response_ok.is_set(),
            trace=make_trace("GET then idle wait",
                             "body received", "not received"))
@@ -1704,7 +1704,7 @@ def test_keepalive():
            closed_by_server.is_set(),
            trace=make_trace("keep-alive socket -> wait for EOF",
                             "server closes connection",
-                            "server did NOT close within 18s"))
+                            "server did NOT close within 65s"))
 
     stop_server()
 

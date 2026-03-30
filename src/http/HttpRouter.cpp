@@ -60,8 +60,6 @@ const LocationConfig* HttpRouter::findBestLocation(const HttpRequest& request, c
 	const std::vector<LocationConfig>& locations = serverConfig.getLocations();
 	const std::string& requestPath = request.getPath();
 
-	std::cout << "path: " << requestPath << std::endl;
-
 	const LocationConfig* bestMatch = NULL; //nao temos match aind
 	size_t bestMatchLength = 0;
 
