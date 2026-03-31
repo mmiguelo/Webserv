@@ -4,7 +4,7 @@
 
 EpollClient::EpollClient(int fd, int epollFd, ServerConfig *config, EpollServer *server)
     : _fd(fd), _epollFd(epollFd), _config(config), _server(server),
-      _lastActivity(time(NULL)), _continueSent(false), _closeAfterSend(false),
+      _lastActivity(time(NULL)), _continueSent(false), _pendingContinue(false), _closeAfterSend(false),
       _cgi_pid(-1), _cgi_stdin_fd(-1), _cgi_stdout_fd(-1), _cgi_input_offset(0), _cgi_start_time(0), _cgi_finished(false)
 {
 }
@@ -52,8 +52,6 @@ bool EpollClient::handleWrite()
     ssize_t sent = send(_fd, _sendBuffer.data(), _sendBuffer.size(), 0);
     if (sent < 0)
     {
-        if (errno == EAGAIN || errno == EWOULDBLOCK)
-            return false;
         return true;
     }
     if (sent == 0)
@@ -64,6 +62,13 @@ bool EpollClient::handleWrite()
 
     if (_sendBuffer.empty())
     {
+        if (_pendingContinue)
+        {
+            _pendingContinue = false;
+            _parser.resumeAfterContinue();
+            _switchToRead();
+            return false;
+        }
         if (_closeAfterSend)
             return true;
 
@@ -108,9 +113,10 @@ void EpollClient::_processPipelines()
             if (!_continueSent)
             {
                 std::string cont = request.getVersion() + " 100 Continue\r\n\r\n";
-                send(_fd, cont.c_str(), cont.size(), 0);
+                _sendBuffer += cont;
                 _continueSent = true;
-                _parser.resumeAfterContinue();
+                _pendingContinue = true;
+                _switchToWrite();
             }
             break;
         }
@@ -313,8 +319,8 @@ std::string EpollClient::getSendBuffer() const {
     return _sendBuffer;
 }
 
-void EpollClient::appendCgiStdoutBuffer(const std::string &other, size_t size) {
-    _cgi_output_buffer += std::string(other.c_str(), size);
+void EpollClient::appendCgiStdoutBuffer(const char *data, size_t size) {
+    _cgi_output_buffer += std::string(data, size);
 }
 
 void EpollClient::setCgiDone(bool flag) {
@@ -331,7 +337,6 @@ void EpollClient::startCgi(pid_t pid, int stdinFd, int stdoutFd, const std::stri
     _cgi_start_time = time(NULL);
     _cgi_finished = false;
 
-    std::cout << "===== VOU REGISTAR O CGI ==== " << std::endl;
     _server->registerCgi(_fd, _cgi_stdin_fd, _cgi_stdout_fd);
 }
 

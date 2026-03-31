@@ -1,5 +1,8 @@
 #pragma once
 
+#include <csignal>
+extern volatile sig_atomic_t g_running;
+
 #include "EpollClient.hpp"
 #include "ServerConfig.hpp"
 #include <map>
@@ -33,7 +36,7 @@ private:
     void _checkTimeout();
 
     void _verifyGetAddr(int ret, int fd);
-    void _verifyBind(int fd, struct addrinfo *res, std::ostringstream *oss, const std::string &host);
+    void _verifyBind(int fd, struct addrinfo *res);
     void _verifyListen(int fd);
 
     // ==== CGI ====

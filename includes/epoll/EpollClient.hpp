@@ -31,6 +31,7 @@ private:
     std::string     _sendBuffer;
     time_t          _lastActivity;
     bool            _continueSent;
+    bool            _pendingContinue;
     bool            _closeAfterSend;
 
     // ==== CGI ====
@@ -84,7 +85,7 @@ public:
     void setCgiStdinFd(int fd);
     void setCgiStdoutFd(int fd);
     void setCgiPid(int pid);
-    void appendCgiStdoutBuffer(const std::string &other, size_t size);
+    void appendCgiStdoutBuffer(const char *data, size_t size);
     void setCgiDone(bool flag);
     void finalizeCgi();
 };

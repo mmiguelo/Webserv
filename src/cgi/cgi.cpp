@@ -33,9 +33,9 @@ void Cgi::freeEnv(char **env) const {
     if (!env)
         return;
     for (size_t i = 0; env[i] != NULL; i++) {
-        delete env[i];
+        delete[] env[i];
     }
-    delete env;
+    delete[] env;
 }
 
 void Cgi::setScriptPath(const std::string& path) {

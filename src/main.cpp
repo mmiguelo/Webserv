@@ -9,11 +9,19 @@
 #include "ConfigParser.hpp"
 #include "Validator.hpp"
 
+volatile sig_atomic_t g_running = 1;
+
+static void _handleSigint(int)
+{
+    g_running = 0;
+}
+
 void printServers(const std::map<int, std::vector<ServerConfig> > &servers);
 
 int main(int argc, char **argv)
 {
     signal(SIGPIPE, SIG_IGN);
+    signal(SIGINT, _handleSigint);
     std::map<int, std::vector<ServerConfig> > servers;
     try
     {

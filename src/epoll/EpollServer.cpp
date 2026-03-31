@@ -9,8 +9,8 @@ EpollServer::EpollServer() : _epollFd(-1)
 
 EpollServer::~EpollServer()
 {
-    for (std::map<int, EpollClient *>::iterator it = _clients.begin(); it != _clients.end(); ++it)
-        _closeClient(it->first);
+    while (!_clients.empty())
+        _closeClient(_clients.begin()->first);
     for (std::set<int>::iterator it = _listenFds.begin(); it != _listenFds.end(); ++it)
         close(*it);
     if (_epollFd != -1)
@@ -44,14 +44,12 @@ void EpollServer::_verifyGetAddr(int ret, int fd)
     }
 }
 
-void EpollServer::_verifyBind(int fd, struct addrinfo *res, std::ostringstream *oss, const std::string &host)
+void EpollServer::_verifyBind(int fd, struct addrinfo *res)
 {
     if (bind(fd, res->ai_addr, res->ai_addrlen) == -1)
     {
         freeaddrinfo(res);
         close(fd);
-        if (errno == EADDRINUSE)
-            throw std::runtime_error("bind failed: EADDRINUSE on " + host + ":" + oss->str());
         throw std::runtime_error("bind failed");
     }
 }
@@ -92,7 +90,7 @@ int EpollServer::_createAndBindSocket(const std::string &host, int port)
 
     int ret = getaddrinfo(node, oss.str().c_str(), &hints, &res);
     _verifyGetAddr(ret, fd);
-    _verifyBind(fd, res, &oss, host);
+    _verifyBind(fd, res);
     freeaddrinfo(res);
     _verifyListen(fd);
     return fd;
@@ -121,9 +119,6 @@ void EpollServer::_acceptNewClient(int listenFd)
 
         if (clientFd == -1)
         {
-            if (errno == EAGAIN || errno == EWOULDBLOCK)
-                break;
-            utils::log_error("accept() failed");
             break;
         }
         _setNonBlocking(clientFd);
@@ -174,15 +169,14 @@ void EpollServer::_checkTimeout()
 
 void EpollServer::run()
 {
+    
     std::cout << _fdToConfig.size() << " server(s) configured, waiting for connections..." << std::endl;
-    while (true)
+    while (g_running)
     {
         int n = epoll_wait(_epollFd, _events, MAX_EVENTS, 1000);
         if (n == -1)
         {
-            if (errno == EINTR)
-                continue;
-            throw std::runtime_error("epoll_wait failed");
+            continue;
         }
 
         _checkTimeout();
@@ -201,7 +195,6 @@ void EpollServer::run()
                 int clientFd = _cgi_fds[fd];
                 if (_clients.count(clientFd))
                 {
-                    std::cout << "===== ENTREI NO RUN DO CGI EPOLLSERVER ==== " << std::endl;
                     EpollClient *client = _clients[clientFd];
                     if (ev & (EPOLLIN | EPOLLHUP))
                     {
