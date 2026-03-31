@@ -331,6 +331,7 @@ void EpollClient::startCgi(pid_t pid, int stdinFd, int stdoutFd, const std::stri
     _cgi_start_time = time(NULL);
     _cgi_finished = false;
 
+    std::cout << "===== VOU REGISTAR O CGI ==== " << std::endl;
     _server->registerCgi(_fd, _cgi_stdin_fd, _cgi_stdout_fd);
 }
 

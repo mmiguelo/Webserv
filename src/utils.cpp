@@ -142,3 +142,27 @@ std::string toAbsolutePath(const std::string& path) {
 		cwdStr += "/";
 	return (cwdStr + path);
 }
+
+std::string getErrorMessage(int statusCode) {
+    static std::map<int, std::string> errorMessage;
+    
+    if (errorMessage.empty()) {
+        errorMessage[403] = "It looks like you're not allowed to be here. If you think this is a mistake, it might be worth double-checking your permissions.";
+        errorMessage[404] = "We're fairly sure that page used to be here, but it seems to have gone missing. We do apologise on its behalf.";
+        errorMessage[405] = "Well... that method isn't going to work here. Maybe try a different approach?";
+        errorMessage[408] = "That took a bit too long. The server gave up waiting—maybe give it another go?";
+        errorMessage[413] = "That's quite a large request! The server couldn't handle it this time.";
+        errorMessage[414] = "That URL is impressively long... a bit *too* long for us to handle, unfortunately.";
+        errorMessage[431] = "Some of the request details are a bit too large to process. Trimming them down should help.";
+        errorMessage[500] = "Something went wrong on our side. We're probably already looking into it (or at least we should be). Sorry about that!";
+        errorMessage[501] = "That feature isn't supported yet. It might be on the to-do list... somewhere.";
+        errorMessage[503] = "We're a bit overwhelmed right now. Please try again in a little while.";
+        errorMessage[505] = "That HTTP version isn't something we can work with. A different one should do the trick.";
+    };
+
+    std::map<int, std::string>::const_iterator it = errorMessage.find(statusCode);
+    if (it != errorMessage.end())
+        return it->second;
+
+    return "Something unexpected happened. We're not quite sure what, but it might be worth trying again.";
+}

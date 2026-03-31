@@ -606,7 +606,8 @@ std::string HttpResponse::buildError(int statusCode, const HttpRequest& request,
     }
     else {
         templateHtml = replaceAll(templateHtml, "{{ERROR_CODE}}", codeStr.str());
-        templateHtml = replaceAll(templateHtml, "{{ERROR_MESSAGE}}", getStatusMessage(statusCode));
+        templateHtml = replaceAll(templateHtml, "{{ERROR_DESCRIPTION}}", getStatusMessage(statusCode));
+        templateHtml = replaceAll(templateHtml, "{{ERROR_MESSAGE}}", getErrorMessage(statusCode));
         _body = templateHtml;
     }
     return serialize(request.getMethod());

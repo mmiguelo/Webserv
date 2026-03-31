@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WEBSERV</title>
+  <title>UPLOADS</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;600&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@200;400;600&display=swap" rel="stylesheet">
@@ -75,7 +75,7 @@
       font-family: 'Orbitron', monospace;
       font-weight: 900;
       font-size: clamp(3rem, 10vw, 5.5rem);
-      letter-spacing: 0.25em;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
       color: #e8f4fd;
       text-shadow:
@@ -86,7 +86,7 @@
     }
  
     .title::after {
-      content: 'WEBSERV';
+      content: 'UPLOADS';
       position: absolute;
       inset: 0;
       background: linear-gradient(180deg, rgba(79, 195, 247, 0.15) 0%, transparent 60%);
@@ -206,6 +206,45 @@
       letter-spacing: 0.06em;
       color: rgba(79, 195, 247, 0.5);
     }
+
+    .Last {
+      display: flex;
+      min-width: 50%;
+      width: fit-content;
+      min-height: fit-content;
+      height: auto;
+      flex-direction: column;
+      backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.50);
+      border-radius: 20px;
+      box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0),
+        0 1px 0 rgba(255, 255, 255, 0) inset,
+        0 -1px 0 rgba(0, 0, 0, 0) inset;
+    }
+
+    .Folder {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 500;
+      font-size: 1.1rem;
+      position: center;
+      color: #e8f4fd;
+      text-shadow:
+        0 0 12px rgba(79, 195, 247, 0.5),
+        0 0 24px rgba(79, 195, 247, 0.2);
+      padding-left: 1.2rem;
+    }
+
+    .Folder-Message {
+      margin-top: 0.5rem;
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 300;
+      font-size: 0.9rem;
+      position: center;
+      color: rgba(79, 195, 247, 0.7);
+      list-style: none;
+      padding-left: 1.2rem;
+    }
  
     /* Animations */
     @keyframes fadeDown {
@@ -231,36 +270,43 @@
   </style>
 </head>
 <body>
- 
   <div class="container">
- 
     <!-- Title -->
     <div class="title-wrap">
-      <h1 class="title">WEBSERV</h1>
-      <p class="subtitle">Built by ddias-fe, mmiguelo, pmachado</p>
+      <h1 class="title">UPLOADS</h1>
+      <p class="subtitle">Upload or Delete a file</p>
     </div>
- 
     <!-- Buttons -->
     <div class="btn-row">
- 
       <a href="/cgi-bin/index.html" class="glass-btn">
-        <span class="btn-icon">⚙️</span>
-        <span class="btn-label">CGI</span>
+        <span class="btn-icon">📌</span>
+        <span class="btn-label">Post</span>
       </a>
  
       <a href="/html/index.html" class="glass-btn">
-        <span class="btn-icon">🌐</span>
-        <span class="btn-label">HTML</span>
+        <span class="btn-icon">❌</span>
+        <span class="btn-label">Delete</span>
       </a>
  
       <a href="/uploads/index.html" class="glass-btn">
-        <span class="btn-icon">📁</span>
-        <span class="btn-label">Uploads</span>
+        <span class="btn-icon">🔒</span>
+        <span class="btn-label">No Permissions</span>
       </a>
- 
+
+      <a href="/../index.html" class="glass-btn">
+        <span class="btn-icon">🏠</span>
+        <span class="btn-label">Back Home</span>
+      </a>
+
     </div>
- 
+
+    <div class="Last">
+		<p class="Folder">Folder Details: </p>
+		<ul class="Folder-Message">
+			{{OUTPUT_DETAIL}}
+		</ul>
+	</div>
+
   </div>
- 
 </body>
 </html>
