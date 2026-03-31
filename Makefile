@@ -100,6 +100,6 @@ re: fclean all
 #	$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJ_BONUS) -o $(NAME_BONUS)
 
 val: all
-	valgrind --leak-check=full --show-leak-kinds=all --track-fds=yes ./$(NAME) config/tester.conf
+	valgrind --leak-check=full --show-leak-kinds=all --track-fds=yes ./$(NAME) config/default.conf
 
 .PHONY: all clean fclean re val #bonus

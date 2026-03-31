@@ -264,18 +264,6 @@
       <span class="btn-label">Method Not Allowed</span>
     </a>
 
-    <button class="glass-btn" onclick="">
-      <span class="btn-icon">408</span>
-      <span class="btn-label">Request Timeout</span>
-      <span class="btn-status" id="status-408"></span>
-    </button>
-
-    <button class="glass-btn" onclick="fire413()">
-      <span class="btn-icon">413</span>
-      <span class="btn-label">Payload Too Large</span>
-      <span class="btn-status" id="status-413"></span>
-    </button>
-
     <!-- working -->
     <button class="glass-btn" onclick="fireLongURI()">
       <span class="btn-icon">414</span>
@@ -283,29 +271,10 @@
       <span class="btn-status" id="status-414"></span>
     </button>
 
-    <button class="glass-btn" onclick="fire431()">
-      <span class="btn-icon">431</span>
-      <span class="btn-label">Header Too Large</span>
-      <span class="btn-status" id="status-431"></span>
-    </button>
-
-    <button class="glass-btn" onclick="">
+    <a href="/cgi-bin/crash.py" class="glass-btn">
       <span class="btn-icon">500</span>
       <span class="btn-label">Internal Server Error</span>
-      <span class="btn-status" id="status-500"></span>
-    </button>
-
-    <button class="glass-btn" onclick="">
-      <span class="btn-icon">501</span>
-      <span class="btn-label">Not Implemented</span>
-      <span class="btn-status" id="status-501"></span>
-    </button>
-
-    <button class="glass-btn" onclick="">
-      <span class="btn-icon">503</span>
-      <span class="btn-label">Service Unavailable</span>
-      <span class="btn-status" id="status-503"></span>
-    </button>
+    </a>
 
     <!-- Back home -->
     <a href="/../index.html" class="glass-btn">
@@ -322,46 +291,14 @@
     window.location.href = '/?' + 'a'.repeat(9000);
   }
 
-  async function fire413() {
-    const el = document.getElementById('status-413');
-    el.textContent = '...';
-
+  async function fireError(url, method) {
     try {
-      const big = new Uint8Array(20000); // 20KB, should exceed 10KB limits
-      const blob = new Blob([big], { type: 'application/octet-stream' });
-
-      const form = new FormData();
-      form.append('file', blob, 'big.bin');
-
-      const res = await fetch('/upload/', {
-        method: 'POST',
-        body: form
-      });
-
-      el.textContent = String(res.status);
-    } catch (err) {
-      el.textContent = 'ERR';
-    }
-  }
-
-  async function fire431() {
-    const el = document.getElementById('status-431');
-    el.textContent = '...';
-    
-    try {
-      const hugeHeader = 'a'.repeat(12000);
-    
-      const res = await fetch('/', {
-        method: 'GET',
-        headers: {
-          'X-Big': hugeHeader
-        }
-      });
-    
-      el.textContent = String(res.status);
-    } catch (err) {
-      el.textContent = 'ERR';
-    }
+      const res = await fetch(url, method ? { method: method } : undefined);
+      const html = await res.text();
+      document.open('text/html', 'replace');
+      document.write(html);
+      document.close();
+    } catch (err) { /* network error — do nothing */ }
   }
 
   function runCGI(script) {
