@@ -38,19 +38,26 @@ HttpRouteMatch HttpRouter::route(const HttpRequest& request, const ServerConfig&
 
 	//PATH
 	std::string path = resolveFilesystemPath(*bestLocation, request);
-	if(!validatePath(path, bestLocation->root) || access(path.c_str(), F_OK) != 0) {
+	if(!validatePath(path, bestLocation->root)) {
 		match.errorCode = 404;
 		return match;
 	}
-	if(access(path.c_str(), R_OK) != 0) {
+
+	//CGI - check extension before file existence so CGI scripts don't need to exist on disk
+	std::string cgiInterpreter;
+	bool isCgiRequest = isCGI(*bestLocation, path, cgiInterpreter);
+
+	if (!isCgiRequest && access(path.c_str(), F_OK) != 0) {
+		match.errorCode = 404;
+		return match;
+	}
+	if (!isCgiRequest && access(path.c_str(), R_OK) != 0) {
 		match.errorCode = 403;
 		return match;
 	}
 	match.path = path;
 
-	//CGI
-	std::string cgiInterpreter;
-	if (isCGI(*bestLocation, path, cgiInterpreter)) {
+	if (isCgiRequest) {
 		match.executeCGI = true;
 		match.cgiInterpreter = cgiInterpreter;
 	}
