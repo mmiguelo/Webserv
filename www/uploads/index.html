@@ -467,7 +467,12 @@
  
         // Keep only real files — skip parent dir and index.html
         const files = links
-          .map(a => a.getAttribute('href'))
+          .map(a => {
+            let href = a.getAttribute('href') || '';
+            // Autoindex generates absolute paths like /uploads/file.txt — strip the prefix
+            if (href.startsWith('/uploads/')) href = href.slice('/uploads/'.length);
+            return href;
+          })
           .filter(href => href && href !== '../' && href !== 'index.html'
                        && !href.startsWith('?') && !href.startsWith('/'));
  
