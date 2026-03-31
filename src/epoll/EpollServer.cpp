@@ -205,12 +205,10 @@ void EpollServer::run()
                     EpollClient *client = _clients[clientFd];
                     if (ev & (EPOLLIN | EPOLLHUP))
                     {
-                        std::cout << "Vou ler o CGI" << std::endl;
                         _handleCgiRead(fd, client);
                     }
                     else if (ev & EPOLLOUT)
                     {
-                        std::cout << "Vou escrever o CGI" << std::endl;
                         _handleCgiWrite(fd, client);
 
                     }
@@ -251,10 +249,6 @@ void EpollServer::registerCgi(int clientFd, int cgiStdinFd, int cgiStdoutFd) {
 
     _cgi_fds[cgiStdinFd] = clientFd;
     _cgi_fds[cgiStdoutFd] = clientFd;
-    
-    std::cout << "registerCgi: client=" << clientFd << " stdinFd=" << cgiStdinFd
-        << " stdoutFd=" << cgiStdoutFd << std::endl;
-
 }
 
 void EpollServer::_closeCgiFd(int fd) {

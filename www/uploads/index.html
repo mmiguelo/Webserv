@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UPLOADS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@200;400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --glass-bg: rgba(255, 255, 255, 0.05);
+      --glass-border: rgba(255, 255, 255, 0.12);
+      --glass-shadow: rgba(0, 0, 0, 0.5);
+      --accent: #4fc3f7;
+      --accent-glow: rgba(79, 195, 247, 0.35);
+    }
+ 
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+ 
+    body {
+      font-family: 'Exo 2', sans-serif;
+      background: #080c10;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+ 
+    /* Ambient background layers */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(79, 195, 247, 0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 100%, rgba(103, 58, 183, 0.07) 0%, transparent 50%),
+        radial-gradient(ellipse 50% 30% at 10% 80%, rgba(0, 188, 212, 0.05) 0%, transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+ 
+    /* Subtle grid overlay */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(79, 195, 247, 0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(79, 195, 247, 0.025) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+      z-index: 0;
+    }
+ 
+    .container {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3.5rem;
+    }
+ 
+    /* Title */
+    .title-wrap {
+      text-align: center;
+      animation: fadeDown 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+ 
+    .title {
+      font-family: 'Orbitron', monospace;
+      font-weight: 900;
+      font-size: clamp(3rem, 10vw, 5.5rem);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #e8f4fd;
+      text-shadow:
+        0 0 40px rgba(79, 195, 247, 0.5),
+        0 0 80px rgba(79, 195, 247, 0.2),
+        0 2px 4px rgba(0,0,0,0.8);
+      position: relative;
+    }
+ 
+    .title::after {
+      content: 'UPLOADS';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(79, 195, 247, 0.15) 0%, transparent 60%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      pointer-events: none;
+    }
+ 
+    .subtitle {
+      margin-top: 0.6rem;
+      font-family: 'Exo 2', sans-serif;
+      font-weight: 600;
+      font-size: 0.78rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: rgba(79, 195, 247, 0.55);
+    }
+ 
+    /* Buttons row */
+    .btn-row {
+      display: flex;
+      flex-direction: row;
+      gap: 3rem;
+      animation: fadeUp 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
+    }
+ 
+    /* iPhone-style glass button */
+    .glass-btn {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.3rem;
+      text-decoration: none;
+      padding: 0.4rem 2rem;
+      min-width: 140px;
+ 
+      background: rgba(255, 255, 255, 0.055);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      border-radius: 20px;
+      box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.45),
+        0 1px 0 rgba(255, 255, 255, 0.08) inset,
+        0 -1px 0 rgba(0, 0, 0, 0.3) inset;
+ 
+      transition:
+        transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
+        box-shadow 0.22s ease,
+        background 0.22s ease,
+        border-color 0.22s ease;
+ 
+      cursor: pointer;
+      overflow: hidden;
+    }
+ 
+    /* Top sheen like iPhone glass */
+    .glass-btn::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 50%;
+      background: linear-gradient(180deg, rgba(255,255,255,0.07) 0%, transparent 100%);
+      border-radius: 20px 20px 0 0;
+      pointer-events: none;
+    }
+ 
+    /* Glow bleed on hover */
+    .glass-btn::after {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: 21px;
+      background: transparent;
+      transition: box-shadow 0.22s ease;
+      pointer-events: none;
+    }
+ 
+    .glass-btn:hover {
+      transform: translateY(-4px) scale(1.03);
+      background: rgba(255, 255, 255, 0.09);
+      border-color: rgba(79, 195, 247, 0.35);
+      box-shadow:
+        0 16px 48px rgba(0, 0, 0, 0.55),
+        0 0 24px rgba(79, 195, 247, 0.2),
+        0 1px 0 rgba(255, 255, 255, 0.12) inset;
+    }
+ 
+    .glass-btn:active {
+      transform: translateY(-1px) scale(0.98);
+      box-shadow:
+        0 6px 20px rgba(0, 0, 0, 0.5),
+        0 1px 0 rgba(255, 255, 255, 0.06) inset;
+    }
+ 
+    .btn-icon {
+      font-size: 1.9rem;
+      line-height: 1;
+      filter: drop-shadow(0 0 8px rgba(79, 195, 247, 0.4));
+    }
+ 
+    .btn-label {
+      font-family: 'Exo 2', sans-serif;
+      font-weight: 600;
+      font-size: 0.82rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(232, 244, 253, 0.85);
+    }
+ 
+    .btn-path {
+      font-family: 'Exo 2', sans-serif;
+      font-weight: 200;
+      font-size: 0.65rem;
+      letter-spacing: 0.06em;
+      color: rgba(79, 195, 247, 0.5);
+    }
+ 
+    .Last {
+      display: flex;
+      min-width: 50%;
+      width: fit-content;
+      min-height: fit-content;
+      height: auto;
+      flex-direction: column;
+      backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.50);
+      border-radius: 20px;
+      box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0),
+        0 1px 0 rgba(255, 255, 255, 0) inset,
+        0 -1px 0 rgba(0, 0, 0, 0) inset;
+      padding-bottom: 1rem;
+    }
+ 
+    .Folder {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 500;
+      font-size: 1.1rem;
+      position: center;
+      color: #e8f4fd;
+      text-shadow:
+        0 0 12px rgba(79, 195, 247, 0.5),
+        0 0 24px rgba(79, 195, 247, 0.2);
+      padding-left: 1.2rem;
+      padding-top: 0.8rem;
+    }
+ 
+    .Folder-Message {
+      margin-top: 0.5rem;
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 300;
+      font-size: 0.9rem;
+      color: rgba(79, 195, 247, 0.7);
+      list-style: none;
+      padding-left: 1.2rem;
+      padding-right: 1.2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+ 
+    .Folder-Message li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.3rem 0.6rem 0.3rem 0;
+      border-bottom: 1px solid rgba(79, 195, 247, 0.08);
+    }
+ 
+    .Folder-Message li:last-child {
+      border-bottom: none;
+    }
+ 
+    .Folder-Message a {
+      color: rgba(79, 195, 247, 0.85);
+      text-decoration: none;
+      transition: color 0.15s ease, text-shadow 0.15s ease;
+    }
+ 
+    .Folder-Message a:hover {
+      color: #4fc3f7;
+      text-shadow: 0 0 8px rgba(79, 195, 247, 0.5);
+    }
+ 
+    /* Delete button inside list */
+    .delete-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 0.85rem;
+      opacity: 0.5;
+      transition: opacity 0.15s ease, transform 0.15s ease;
+      padding: 0.1rem 0.2rem;
+      line-height: 1;
+    }
+ 
+    .delete-btn:hover {
+      opacity: 1;
+      transform: scale(1.2);
+    }
+ 
+    /* Status bar */
+    #upload-status {
+      font-family: 'Exo 2', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      padding: 0.5rem 1.2rem;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.1);
+      backdrop-filter: blur(10px);
+      animation: fadeUp 0.3s ease both;
+      text-align: center;
+      min-width: 50%;
+    }
+ 
+    #upload-status.text-green-900 {
+      color: #86efac;
+      background: rgba(34, 197, 94, 0.08);
+      border-color: rgba(34, 197, 94, 0.25);
+    }
+ 
+    #upload-status.text-red-900 {
+      color: #fca5a5;
+      background: rgba(239, 68, 68, 0.08);
+      border-color: rgba(239, 68, 68, 0.25);
+    }
+ 
+    /* Animations */
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-28px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+ 
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(28px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+ 
+    /* Responsive: stack on very small screens */
+    @media (max-width: 480px) {
+      .btn-row {
+        flex-direction: column;
+        align-items: center;
+      }
+      .glass-btn {
+        width: 200px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+ 
+    <!-- Title -->
+    <div class="title-wrap">
+      <h1 class="title">UPLOADS</h1>
+      <p class="subtitle">Upload or Delete a file</p>
+    </div>
+ 
+    <!-- Buttons -->
+    <div class="btn-row">
+      <div class="glass-btn" onclick="triggerUpload()">
+        <span class="btn-icon">📌</span>
+        <span class="btn-label">Post</span>
+      </div>
+ 
+      <a href="/uploads/index.html" class="glass-btn">
+        <span class="btn-icon">🔒</span>
+        <span class="btn-label">No Permissions</span>
+      </a>
+ 
+      <a href="/../index.html" class="glass-btn">
+        <span class="btn-icon">🏠</span>
+        <span class="btn-label">Back Home</span>
+      </a>
+    </div>
+ 
+    <!-- Hidden file input -->
+    <input type="file" id="fileInput" style="display:none" />
+ 
+    <!-- Status message -->
+    <div id="upload-status" class="hidden"></div>
+ 
+    <!-- File list panel -->
+    <div class="Last">
+      <p class="Folder">Folder Details:</p>
+      <ul id="fileList" class="Folder-Message">
+        <li style="color: rgba(79,195,247,0.35); font-style: italic;">Loading…</li>
+      </ul>
+    </div>
+ 
+  </div>
+ 
+  <script>
+    // ── Bootstrap ────────────────────────────────────────────────────────────
+    window.addEventListener('DOMContentLoaded', () => refreshGallery());
+ 
+    // ── Upload trigger (Post button) ─────────────────────────────────────────
+    function triggerUpload() {
+      document.getElementById('fileInput').click();
+    }
+ 
+    document.getElementById('fileInput').addEventListener('change', async function () {
+      if (!this.files || !this.files[0]) return;
+ 
+      const file     = this.files[0];
+      const formData = new FormData();
+      formData.append('file', file);
+ 
+      try {
+        const res = await fetch('/uploads/', {
+          method: 'POST',
+          body: formData
+        });
+ 
+        if (res.ok) {
+          showStatus(`✓ "${file.name}" uploaded successfully`, false);
+          this.value = '';
+          await refreshGallery();
+        } else if (res.status === 403) {
+          showStatus('Permission denied: cannot write to upload directory', true);
+        } else if (res.status === 400) {
+          showStatus('Bad request: invalid file or parameters', true);
+        } else if (res.status === 500) {
+          showStatus('Server error: failed to save file', true);
+        } else {
+          showStatus(`Upload failed (${res.status})`, true);
+        }
+      } catch (err) {
+        console.error('Upload error:', err);
+        showStatus('Network error during upload', true);
+      }
+    });
+ 
+    // ── Delete (delegated, catches .delete-btn clicks anywhere in the list) ──
+    document.addEventListener('click', async function (e) {
+      if (!e.target.classList.contains('delete-btn')) return;
+ 
+      const filename = e.target.dataset.filename;
+      if (!filename) return;
+ 
+      try {
+        const res = await fetch(`/uploads/${filename}`, { method: 'DELETE' });
+ 
+        if (res.status === 204) {
+          showStatus(`✓ "${filename}" deleted`, false);
+          await refreshGallery();
+        } else if (res.status === 404) {
+          showStatus(`"${filename}" not found on server`, true);
+        } else if (res.status === 403) {
+          showStatus(`Permission denied: cannot delete "${filename}"`, true);
+        } else {
+          showStatus(`Delete failed (${res.status})`, true);
+        }
+      } catch (err) {
+        console.error('Delete error:', err);
+        showStatus('Network error during delete', true);
+      }
+    });
+ 
+    // ── Gallery refresh ──────────────────────────────────────────────────────
+    // Fetches /uploads/ (directory listing), parses the <a> tags, and
+    // rebuilds the #fileList — no separate server-render needed.
+    async function refreshGallery() {
+      const list = document.getElementById('fileList');
+ 
+      try {
+        const res  = await fetch('/uploads/', { cache: 'no-store' });
+        const html = await res.text();
+ 
+        const doc   = new DOMParser().parseFromString(html, 'text/html');
+        const links = Array.from(doc.querySelectorAll('a'));
+ 
+        // Keep only real files — skip parent dir and index.html
+        const files = links
+          .map(a => {
+            let href = a.getAttribute('href') || '';
+            // Autoindex generates absolute paths like /uploads/file.txt — strip the prefix
+            if (href.startsWith('/uploads/')) href = href.slice('/uploads/'.length);
+            return href;
+          })
+          .filter(href => href && href !== '../' && href !== 'index.html'
+                       && !href.startsWith('?') && !href.startsWith('/'));
+ 
+        list.innerHTML = '';
+ 
+        if (files.length === 0) {
+          list.innerHTML = '<li style="color:rgba(79,195,247,0.35);font-style:italic;">No files found.</li>';
+          return;
+        }
+ 
+        files.forEach(file => {
+          // Strip trailing slash just in case autoindex adds one to dirs
+          const name = file.replace(/\/$/, '');
+          const li   = document.createElement('li');
+          li.innerHTML = `
+            <a href="/uploads/${name}" target="_blank">${name}</a>
+            <button class="delete-btn" data-filename="${name}" title="Delete ${name}">❌</button>
+          `;
+          list.appendChild(li);
+        });
+ 
+      } catch (err) {
+        console.error('Gallery refresh failed:', err);
+        list.innerHTML = '<li style="color:#fca5a5;">Failed to load file list.</li>';
+      }
+    }
+ 
+    // ── Status helper ────────────────────────────────────────────────────────
+    function showStatus(msg, isError) {
+      const div = document.getElementById('upload-status');
+ 
+      div.textContent = msg;
+      div.classList.remove('hidden', 'text-green-900', 'text-red-900');
+      div.classList.add(isError ? 'text-red-900' : 'text-green-900');
+ 
+      // Auto-hide successes after 5 s
+      if (!isError) {
+        setTimeout(() => div.classList.add('hidden'), 5000);
+      }
+    }
+  </script>
+</body>
+</html>

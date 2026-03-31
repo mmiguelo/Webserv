@@ -214,7 +214,6 @@ void EpollClient::_buildRoutedResponse(const HttpRequest &request, HttpResponse 
         _closeAfterSend = true;
     }
     else if (match.executeCGI) {
-        std::cout << "===== VOU DAR HANDLE AO CGI ==== " << std::endl;
         responseStr = response.handleCgi(request, *_config, match, this);
     }
     else

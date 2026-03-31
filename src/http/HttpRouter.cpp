@@ -42,11 +42,22 @@ HttpRouteMatch HttpRouter::route(const HttpRequest& request, const ServerConfig&
 		match.errorCode = 404;
 		return match;
 	}
+
+	//CGI - check extension before file existence so CGI scripts don't need to exist on disk
+	std::string cgiInterpreter;
+	bool isCgiRequest = isCGI(*bestLocation, path, cgiInterpreter);
+
+	if (!isCgiRequest && access(path.c_str(), F_OK) != 0) {
+		match.errorCode = 404;
+		return match;
+	}
+	if (!isCgiRequest && access(path.c_str(), R_OK) != 0) {
+		match.errorCode = 403;
+		return match;
+	}
 	match.path = path;
 
-	//CGI
-	std::string cgiInterpreter;
-	if (isCGI(*bestLocation, path, cgiInterpreter)) {
+	if (isCgiRequest) {
 		match.executeCGI = true;
 		match.cgiInterpreter = cgiInterpreter;
 	}
@@ -59,8 +70,6 @@ HttpRouteMatch HttpRouter::route(const HttpRequest& request, const ServerConfig&
 const LocationConfig* HttpRouter::findBestLocation(const HttpRequest& request, const ServerConfig& serverConfig) {
 	const std::vector<LocationConfig>& locations = serverConfig.getLocations();
 	const std::string& requestPath = request.getPath();
-
-	std::cout << "path: " << requestPath << std::endl;
 
 	const LocationConfig* bestMatch = NULL; //nao temos match aind
 	size_t bestMatchLength = 0;
