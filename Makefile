@@ -39,6 +39,7 @@ HTTP =	HttpRequest.cpp
 HTTP +=	HttpParser.cpp
 HTTP +=	HttpResponse.cpp
 HTTP +=	HttpRouter.cpp
+HTTP += HttpBuilder.cpp
 
 FILE_PARSE = ConfigParser.cpp
 FILE_PARSE += ConfigParserLocation.cpp
