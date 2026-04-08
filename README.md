@@ -1,6 +1,20 @@
+<a id="readme-top"></a>
+
+<div align="center">
+
+# 🌐 Webserv
+ 
 *This project has been created as part of the 42 curriculum by ddias-fe, mmiguelo and pmachado.*
 
-# Webserv
+<br>
+
+<img src="https://img.shields.io/badge/42-School-000000?style=for-the-badge&logo=42&logoColor=white" />
+<img src="https://img.shields.io/badge/Language-C++-00599C?style=for-the-badge&logo=c%2B%2B&logoColor=white" />
+<img src="https://img.shields.io/badge/Norm-OK-brightgreen?style=for-the-badge" />
+<img src="https://img.shields.io/github/repo-size/mmiguelo/Webserv?style=for-the-badge&logo=github" />
+<img src="https://img.shields.io/github/last-commit/mmiguelo/Webserv?style=for-the-badge" />
+
+</div>
 
 ## Description
 
