@@ -289,7 +289,7 @@
       <span class="btn-status" id="status-431"></span>
     </button>
 
-    <button class="glass-btn" onclick="">
+    <button class="glass-btn" onclick="fire500()">
       <span class="btn-icon">500</span>
       <span class="btn-label">Internal Server Error</span>
       <span class="btn-status" id="status-500"></span>
@@ -362,6 +362,10 @@
     } catch (err) {
       el.textContent = 'ERR';
     }
+  }
+
+  function fire500() {
+    window.location.href = '/cgi-bin/crash.py';
   }
 
   function runCGI(script) {
